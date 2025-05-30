@@ -318,11 +318,13 @@ export default function Home() {
                               <div>
                                 <p className="text-xs font-medium text-gray-500">Priority</p>
                                 <span className={`inline-flex items-center px-2 py-1 rounded-md text-xs font-medium ${
-                                  result.classification.routing.suggested_priority === 'high' 
+                                  result.classification.routing.priority === 'high' || result.classification.routing.priority === 'critical'
                                     ? 'bg-red-100 text-red-700'
-                                    : 'bg-yellow-100 text-yellow-700'
+                                    : result.classification.routing.priority === 'medium'
+                                    ? 'bg-yellow-100 text-yellow-700'
+                                    : 'bg-blue-100 text-blue-700'
                                 }`}>
-                                  {result.classification.routing.suggested_priority.toUpperCase()}
+                                  {(result.classification.routing.priority || "normal").toUpperCase()}
                                 </span>
                               </div>
                             </div>

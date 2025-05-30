@@ -1,0 +1,75 @@
+{
+    "transaction_id": "TRX-2024031501",
+    "amount": 157850.00,
+    "currency": "USD",
+    "timestamp": "2024-03-15T08:30:00Z",
+    "description": "Enterprise Hardware & Software Package",
+    "status": "pending_approval",
+    "customer": {
+        "id": "CORP-456789",
+        "name": "Global Solutions Ltd.",
+        "email": "procurement@globalsolutions.com",
+        "type": "enterprise",
+        "risk_score": 0.85,
+        "account_age_days": 15,
+        "billing_address": {
+            "street": "789 Corporate Park",
+            "city": "New Business City",
+            "state": "CA",
+            "zip": "94105",
+            "country": "USA"
+        }
+    },
+    "payment": {
+        "method": "wire_transfer",
+        "bank_name": "International Bank Corp",
+        "routing_number": "021000021",
+        "account_last4": "9876",
+        "authorized_by": "Jane Wilson",
+        "authorization_time": "2024-03-15T08:29:55Z"
+    },
+    "items": [
+        {
+            "id": "HW-001",
+            "category": "hardware",
+            "name": "Enterprise Server Cluster",
+            "quantity": 5,
+            "unit_price": 18500.00,
+            "total": 92500.00
+        },
+        {
+            "id": "SW-001",
+            "category": "software",
+            "name": "Enterprise License Package",
+            "quantity": 250,
+            "unit_price": 245.00,
+            "total": 61250.00
+        },
+        {
+            "id": "SVC-001",
+            "category": "service",
+            "name": "Premium Implementation Support",
+            "quantity": 1,
+            "unit_price": 4100.00,
+            "total": 4100.00
+        }
+    ],
+    "flags": {
+        "high_value": true,
+        "new_customer": true,
+        "international": false,
+        "requires_review": true,
+        "risk_flags": [
+            "high_value_transaction",
+            "new_customer_account",
+            "multiple_items",
+            "enterprise_level_purchase"
+        ]
+    },
+    "metadata": {
+        "ip_address": "203.0.113.45",
+        "user_agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)",
+        "referrer": "internal-procurement-portal",
+        "request_id": "REQ-2024031501-789"
+    }
+} 
