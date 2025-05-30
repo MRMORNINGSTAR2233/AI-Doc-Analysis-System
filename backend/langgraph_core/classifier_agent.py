@@ -1,17 +1,24 @@
+import os
 import google.generativeai as genai
 from pathlib import Path
 import json
-import os
+import logging
 from typing import Dict, Any
 import mimetypes
 from email import message_from_file
 import pypdf
 
+logger = logging.getLogger(__name__)
+
 class ClassifierAgent:
     def __init__(self):
-        # Initialize Gemini
-        genai.configure(api_key=os.getenv("GOOGLE_API_KEY"))
-        self.model = genai.GenerativeModel('gemini-pro')
+        # Initialize Google Gemini
+        api_key = os.getenv("GOOGLE_API_KEY")
+        if not api_key:
+            raise ValueError("GOOGLE_API_KEY environment variable not set")
+            
+        genai.configure(api_key=api_key)
+        self.model = genai.GenerativeModel('gemini-1.5-flash')
         
         # Few-shot examples for intent classification
         self.few_shot_examples = """
@@ -35,6 +42,58 @@ class ClassifierAgent:
         Content: "Suspicious transaction pattern detected..."
         Intent: Fraud Risk
         """
+        
+    async def _read_file_content(self, file_path: Path, max_size: int = 10000) -> str:
+        """Read the first part of the file content."""
+        try:
+            with open(file_path, 'r', encoding='utf-8') as f:
+                return f.read(max_size)
+        except UnicodeDecodeError:
+            # If UTF-8 fails, try reading as binary
+            with open(file_path, 'rb') as f:
+                content = f.read(max_size)
+                return content.decode('latin-1')
+                
+    async def classify(self, file_path: Path) -> Dict[str, Any]:
+        """Classify the document format and intent."""
+        try:
+            # Read file content
+            content = await self._read_file_content(file_path)
+            
+            # Prepare prompt for classification
+            prompt = f"""Analyze the following document content and classify its format and intent.
+            Respond in JSON format with the following structure:
+            {{
+                "format": "email|json|pdf",
+                "intent": "complaint|transaction|invoice|other",
+                "confidence": 0.0-1.0,
+                "details": "brief explanation"
+            }}
+            
+            Document content:
+            {content[:1000]}...
+            """
+            
+            # Get classification from Gemini
+            response = await self.model.generate_content(prompt)
+            
+            try:
+                # Parse response
+                result = json.loads(response.text)
+                logger.info(f"Classification result for {file_path.name}: {result}")
+                return result
+            except json.JSONDecodeError:
+                logger.error(f"Failed to parse Gemini response: {response.text}")
+                return {
+                    "format": "unknown",
+                    "intent": "unknown",
+                    "confidence": 0.0,
+                    "details": "Failed to classify document"
+                }
+                
+        except Exception as e:
+            logger.error(f"Classification error: {str(e)}")
+            raise
         
     async def _detect_format(self, file_path: Path) -> str:
         mime_type = mimetypes.guess_type(file_path)[0]

@@ -1,0 +1,37 @@
+# Version control
+.git
+.gitignore
+
+# Dependencies
+**/node_modules
+**/__pycache__
+**/*.pyc
+**/.pytest_cache
+**/.coverage
+
+# Environment
+**/.env
+**/.env.*
+**/venv
+**/.venv
+
+# Development
+**/.vscode
+**/.idea
+**/*.log
+
+# Build outputs
+**/dist
+**/build
+**/.next
+**/*.egg-info
+
+# Data directories
+**/memory
+**/shared/uploads/*
+**/shared/output_logs/*
+!**/shared/sample_inputs/
+
+# Docker
+**/Dockerfile
+docker-compose.yml 

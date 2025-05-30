@@ -1,0 +1,39 @@
+{
+    "transaction_id": "TRX-20240314-15K",
+    "amount": 15000.00,
+    "currency": "USD",
+    "timestamp": "2024-03-14T10:45:00Z",
+    "status": "pending",
+    "description": "High-value equipment purchase",
+    "customer": {
+        "id": "CUST-789",
+        "name": "Tech Solutions Inc.",
+        "email": "procurement@techsolutions.com",
+        "billing_address": {
+            "street": "456 Enterprise Ave",
+            "city": "Business District",
+            "state": "CA",
+            "zip": "94105",
+            "country": "USA"
+        }
+    },
+    "payment": {
+        "method": "credit_card",
+        "last_four": "4321",
+        "authorization_code": "AUTH-987654"
+    },
+    "items": [
+        {
+            "id": "ITEM-001",
+            "name": "Enterprise Server Hardware",
+            "quantity": 1,
+            "unit_price": 15000.00,
+            "total": 15000.00
+        }
+    ],
+    "flags": {
+        "requires_approval": true,
+        "high_value": true,
+        "new_customer": false
+    }
+} 

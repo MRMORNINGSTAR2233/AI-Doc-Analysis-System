@@ -1,81 +1,166 @@
-from sqlalchemy import create_engine, Column, String, JSON, DateTime
-from sqlalchemy.ext.declarative import declarative_base
-from sqlalchemy.orm import sessionmaker
-from datetime import datetime
-import chromadb
+import os
+from pathlib import Path
 import json
+import logging
+import sqlite3
+import chromadb
+from datetime import datetime
+from typing import Dict, Any, Optional
 import uuid
 
-Base = declarative_base()
-
-class ProcessingRecord(Base):
-    __tablename__ = 'processing_records'
-    
-    id = Column(String, primary_key=True)
-    timestamp = Column(DateTime, default=datetime.utcnow)
-    classification = Column(JSON)
-    processing_result = Column(JSON)
-    actions = Column(JSON)
+logger = logging.getLogger(__name__)
 
 class MemoryManager:
     def __init__(self):
         # Initialize SQLite
-        self.engine = create_engine('sqlite:///memory/agent_memory.db')
-        Base.metadata.create_all(self.engine)
-        self.Session = sessionmaker(bind=self.engine)
+        self.db_path = os.getenv("SQLITE_DB_PATH", "memory/agent_memory.db")
+        self._init_sqlite()
         
         # Initialize ChromaDB
-        self.chroma_client = chromadb.Client()
-        self.collection = self.chroma_client.create_collection(
-            name="agent_memory",
-            get_or_create=True
+        self.chroma_path = os.getenv("CHROMA_DB_PATH", "memory/chroma_db")
+        self.chroma_client = chromadb.PersistentClient(path=self.chroma_path)
+        self.collection = self.chroma_client.get_or_create_collection(
+            name="document_memory",
+            metadata={"hnsw:space": "cosine"}
         )
         
-    async def store_processing_result(self, classification, processing_result, actions):
-        memory_id = str(uuid.uuid4())
+    def _init_sqlite(self):
+        """Initialize SQLite database and tables."""
+        Path(self.db_path).parent.mkdir(parents=True, exist_ok=True)
         
-        # Store in SQLite
-        session = self.Session()
-        record = ProcessingRecord(
-            id=memory_id,
-            classification=classification,
-            processing_result=processing_result,
-            actions=actions
-        )
-        session.add(record)
-        session.commit()
+        conn = sqlite3.connect(self.db_path)
+        cursor = conn.cursor()
         
-        # Store in ChromaDB for semantic search
-        self.collection.add(
-            documents=[json.dumps({
+        # Create tables
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS processing_results (
+                id TEXT PRIMARY KEY,
+                timestamp TEXT NOT NULL,
+                classification TEXT NOT NULL,
+                processing_result TEXT NOT NULL,
+                actions TEXT NOT NULL
+            )
+        """)
+        
+        conn.commit()
+        conn.close()
+        
+    async def store_processing_result(
+        self,
+        classification: Dict[str, Any],
+        processing_result: Dict[str, Any],
+        actions: list
+    ) -> str:
+        """Store processing result and return memory ID."""
+        try:
+            # Generate unique ID
+            memory_id = str(uuid.uuid4())
+            timestamp = datetime.now().isoformat()
+            
+            # Store in SQLite
+            conn = sqlite3.connect(self.db_path)
+            cursor = conn.cursor()
+            
+            cursor.execute(
+                """
+                INSERT INTO processing_results
+                (id, timestamp, classification, processing_result, actions)
+                VALUES (?, ?, ?, ?, ?)
+                """,
+                (
+                    memory_id,
+                    timestamp,
+                    json.dumps(classification),
+                    json.dumps(processing_result),
+                    json.dumps(actions)
+                )
+            )
+            
+            conn.commit()
+            conn.close()
+            
+            # Store in ChromaDB for semantic search
+            document_text = json.dumps({
                 "classification": classification,
                 "processing_result": processing_result,
                 "actions": actions
-            })],
-            metadatas=[{"timestamp": datetime.utcnow().isoformat()}],
-            ids=[memory_id]
-        )
-        
-        return memory_id
-        
-    async def get_memory(self, memory_id):
-        session = self.Session()
-        record = session.query(ProcessingRecord).filter_by(id=memory_id).first()
-        
-        if not record:
-            raise ValueError(f"No record found for memory_id: {memory_id}")
+            })
             
-        return {
-            "id": record.id,
-            "timestamp": record.timestamp.isoformat(),
-            "classification": record.classification,
-            "processing_result": record.processing_result,
-            "actions": record.actions
-        }
-        
-    async def search_similar(self, query, n_results=5):
-        results = self.collection.query(
-            query_texts=[query],
-            n_results=n_results
-        )
-        return results 
+            self.collection.add(
+                documents=[document_text],
+                metadatas=[{
+                    "timestamp": timestamp,
+                    "doc_type": classification.get("format", "unknown"),
+                    "memory_id": memory_id
+                }],
+                ids=[memory_id]
+            )
+            
+            logger.info(f"Stored processing result with ID: {memory_id}")
+            return memory_id
+            
+        except Exception as e:
+            logger.error(f"Failed to store processing result: {str(e)}")
+            raise
+            
+    async def get_memory(self, memory_id: str) -> Optional[Dict[str, Any]]:
+        """Retrieve processing result by memory ID."""
+        try:
+            conn = sqlite3.connect(self.db_path)
+            cursor = conn.cursor()
+            
+            cursor.execute(
+                "SELECT * FROM processing_results WHERE id = ?",
+                (memory_id,)
+            )
+            
+            row = cursor.fetchone()
+            conn.close()
+            
+            if not row:
+                raise ValueError(f"Memory ID not found: {memory_id}")
+                
+            return {
+                "id": row[0],
+                "timestamp": row[1],
+                "classification": json.loads(row[2]),
+                "processing_result": json.loads(row[3]),
+                "actions": json.loads(row[4])
+            }
+            
+        except Exception as e:
+            logger.error(f"Failed to retrieve memory: {str(e)}")
+            raise
+            
+    async def search_similar(
+        self,
+        query: str,
+        doc_type: Optional[str] = None,
+        limit: int = 5
+    ) -> list:
+        """Search for similar documents using ChromaDB."""
+        try:
+            where = {"doc_type": doc_type} if doc_type else None
+            
+            results = self.collection.query(
+                query_texts=[query],
+                n_results=limit,
+                where=where
+            )
+            
+            memory_ids = results["ids"][0]  # First query's results
+            
+            # Fetch full records from SQLite
+            memories = []
+            for memory_id in memory_ids:
+                try:
+                    memory = await self.get_memory(memory_id)
+                    memories.append(memory)
+                except ValueError:
+                    continue
+                    
+            return memories
+            
+        except Exception as e:
+            logger.error(f"Failed to search similar documents: {str(e)}")
+            raise 

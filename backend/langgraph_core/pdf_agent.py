@@ -1,129 +1,160 @@
+import os
 import google.generativeai as genai
 from pathlib import Path
-import os
+import json
+import logging
 from typing import Dict, Any, List
 import pypdf
-import re
+
+logger = logging.getLogger(__name__)
 
 class PDFAgent:
     def __init__(self):
-        genai.configure(api_key=os.getenv("GOOGLE_API_KEY"))
-        self.model = genai.GenerativeModel('gemini-pro')
+        # Initialize Google Gemini
+        api_key = os.getenv("GOOGLE_API_KEY")
+        if not api_key:
+            raise ValueError("GOOGLE_API_KEY environment variable not set")
+            
+        genai.configure(api_key=api_key)
+        self.model = genai.GenerativeModel('gemini-1.5-flash')
         
-        # Compliance keywords
-        self.compliance_keywords = {
-            "GDPR": [
-                r"GDPR",
-                r"General Data Protection Regulation",
-                r"data protection",
-                r"personal data",
-                r"data subject",
-                r"data controller"
-            ],
-            "HIPAA": [
-                r"HIPAA",
-                r"Health Insurance Portability",
-                r"protected health information",
-                r"PHI",
-                r"medical records"
-            ],
-            "FDA": [
-                r"FDA",
-                r"Food and Drug Administration",
-                r"drug safety",
-                r"clinical trials",
-                r"medical device"
-            ]
-        }
+    def _extract_text(self, file_path: Path) -> str:
+        """Extract text content from PDF file."""
+        try:
+            with open(file_path, 'rb') as file:
+                pdf = pypdf.PdfReader(file)
+                text = ""
+                for page in pdf.pages:
+                    text += page.extract_text() + "\n"
+                return text
+        except Exception as e:
+            logger.error(f"PDF text extraction failed: {str(e)}")
+            raise
+            
+    async def _analyze_content(self, text: str) -> Dict[str, Any]:
+        """Analyze PDF content for document type, compliance, and key information."""
+        prompt = f"""Analyze the following document text for type, compliance requirements, and key information.
+        Respond in JSON format with the following structure:
+        {{
+            "document_type": "invoice|contract|report|other",
+            "compliance_requirements": ["requirement1", "requirement2"],
+            "sensitive_information": {{
+                "contains_pii": true|false,
+                "contains_financial": true|false,
+                "contains_medical": true|false
+            }},
+            "key_findings": ["finding1", "finding2"],
+            "risk_level": "high|medium|low"
+        }}
         
-    async def _extract_invoice_items(self, text: str) -> List[Dict[str, Any]]:
-        prompt = """
-        Extract line items from this invoice text. Format as JSON array with fields:
-        - description: Item description
-        - quantity: Numeric quantity
-        - unit_price: Price per unit
-        - total: Total price for line item
-        
-        Text:
-        {text}
+        Document text:
+        {text[:2000]}...  # Limit text length for API
         """
         
-        response = self.model.generate_content(prompt.format(text=text))
         try:
-            items = json.loads(response.text)
-            return items if isinstance(items, list) else []
-        except:
-            return []
+            response = await self.model.generate_content(prompt)
+            return json.loads(response.text)
+        except Exception as e:
+            logger.error(f"Content analysis failed: {str(e)}")
+            return {
+                "document_type": "unknown",
+                "compliance_requirements": [],
+                "sensitive_information": {
+                    "contains_pii": False,
+                    "contains_financial": False,
+                    "contains_medical": False
+                },
+                "key_findings": [],
+                "risk_level": "unknown"
+            }
             
-    def _check_compliance_mentions(self, text: str) -> Dict[str, List[str]]:
-        mentions = {}
+    def _check_compliance(self, analysis: Dict[str, Any]) -> List[Dict[str, Any]]:
+        """Check for compliance issues based on document analysis."""
+        compliance_issues = []
         
-        for regulation, patterns in self.compliance_keywords.items():
-            matches = []
-            for pattern in patterns:
-                found = re.finditer(pattern, text, re.IGNORECASE)
-                matches.extend([text[max(0, m.start()-50):m.end()+50].strip() for m in found])
-            if matches:
-                mentions[regulation] = matches
-                
-        return mentions
-        
-    def _extract_total_amount(self, text: str) -> float:
-        # Common patterns for total amounts
-        patterns = [
-            r"total:?\s*[\$€£]?([\d,]+\.?\d*)",
-            r"amount due:?\s*[\$€£]?([\d,]+\.?\d*)",
-            r"grand total:?\s*[\$€£]?([\d,]+\.?\d*)"
-        ]
-        
-        for pattern in patterns:
-            matches = re.finditer(pattern, text, re.IGNORECASE)
-            for match in matches:
-                try:
-                    amount_str = match.group(1).replace(',', '')
-                    return float(amount_str)
-                except:
-                    continue
-                    
-        return 0.0
+        # Check for PII handling requirements
+        if analysis["sensitive_information"]["contains_pii"]:
+            compliance_issues.append({
+                "type": "pii_handling",
+                "description": "Document contains PII - ensure GDPR/CCPA compliance",
+                "severity": "high"
+            })
+            
+        # Check for financial data requirements
+        if analysis["sensitive_information"]["contains_financial"]:
+            compliance_issues.append({
+                "type": "financial_compliance",
+                "description": "Document contains financial data - ensure SOX compliance",
+                "severity": "high"
+            })
+            
+        # Check for medical data requirements
+        if analysis["sensitive_information"]["contains_medical"]:
+            compliance_issues.append({
+                "type": "medical_compliance",
+                "description": "Document contains medical information - ensure HIPAA compliance",
+                "severity": "high"
+            })
+            
+        return compliance_issues
         
     async def process(self, file_path: Path) -> Dict[str, Any]:
-        # Read PDF
-        reader = pypdf.PdfReader(file_path)
-        text = ""
-        for page in reader.pages:
-            text += page.extract_text() + "\n"
+        """Process PDF file and return analysis."""
+        try:
+            # Extract text
+            text = self._extract_text(file_path)
             
-        # Process content
-        invoice_items = await self._extract_invoice_items(text)
-        total_amount = self._extract_total_amount(text)
-        compliance_mentions = self._check_compliance_mentions(text)
-        
-        # Check for violations
-        violations = []
-        if total_amount > 10000:
-            violations.append({
-                "type": "high_value",
-                "details": f"Invoice total (${total_amount:,.2f}) exceeds $10,000 threshold"
-            })
+            # Analyze content
+            analysis = await self._analyze_content(text)
             
-        if compliance_mentions:
-            violations.append({
-                "type": "compliance",
-                "details": "Document contains regulatory compliance terms",
-                "mentions": compliance_mentions
-            })
+            # Check compliance
+            compliance_issues = self._check_compliance(analysis)
             
-        return {
-            "metadata": {
-                "pages": len(reader.pages),
-                "pdf_info": reader.metadata
-            },
-            "content": {
-                "invoice_items": invoice_items,
-                "total_amount": total_amount,
-                "compliance_mentions": compliance_mentions
-            },
-            "violations": violations,
-            "needs_risk_alert": len(violations) > 0
-        } 
+            # Prepare result
+            result = {
+                "metadata": {
+                    "file_name": file_path.name,
+                    "document_type": analysis["document_type"]
+                },
+                "content": {
+                    "text_preview": text[:1000] + "..." if len(text) > 1000 else text,
+                    "page_count": len(pypdf.PdfReader(file_path).pages)
+                },
+                "analysis": {
+                    "compliance_requirements": analysis["compliance_requirements"],
+                    "sensitive_information": analysis["sensitive_information"],
+                    "key_findings": analysis["key_findings"],
+                    "risk_level": analysis["risk_level"],
+                    "compliance_issues": compliance_issues
+                },
+                "suggested_actions": []
+            }
+            
+            # Add suggested actions based on analysis
+            if analysis["risk_level"] == "high":
+                result["suggested_actions"].append({
+                    "type": "risk_alert",
+                    "priority": "high",
+                    "reason": "High risk level detected in document"
+                })
+                
+            if compliance_issues:
+                result["suggested_actions"].append({
+                    "type": "compliance_review",
+                    "priority": "high",
+                    "reason": f"Found {len(compliance_issues)} compliance issues"
+                })
+                
+            if any(analysis["sensitive_information"].values()):
+                result["suggested_actions"].append({
+                    "type": "data_protection",
+                    "priority": "high",
+                    "reason": "Document contains sensitive information"
+                })
+                
+            logger.info(f"PDF processing complete for {file_path.name}")
+            return result
+            
+        except Exception as e:
+            logger.error(f"PDF processing error: {str(e)}")
+            raise 

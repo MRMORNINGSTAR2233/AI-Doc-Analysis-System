@@ -1,115 +1,158 @@
+import os
+import google.generativeai as genai
 from pathlib import Path
 import json
-from typing import Dict, Any
+import logging
+from typing import Dict, Any, List
 from jsonschema import validate, ValidationError
+
+logger = logging.getLogger(__name__)
 
 class JSONAgent:
     def __init__(self):
-        # Define base schema for different types of JSON inputs
+        # Initialize Google Gemini
+        api_key = os.getenv("GOOGLE_API_KEY")
+        if not api_key:
+            raise ValueError("GOOGLE_API_KEY environment variable not set")
+            
+        genai.configure(api_key=api_key)
+        self.model = genai.GenerativeModel('gemini-1.5-flash')
+        
+        # Common JSON schemas
         self.schemas = {
-            "webhook": {
-                "type": "object",
-                "required": ["event_type", "timestamp", "data"],
-                "properties": {
-                    "event_type": {"type": "string"},
-                    "timestamp": {"type": "string", "format": "date-time"},
-                    "data": {"type": "object"}
-                }
-            },
             "transaction": {
                 "type": "object",
-                "required": ["transaction_id", "amount", "currency", "customer"],
+                "required": ["amount", "currency", "timestamp"],
                 "properties": {
-                    "transaction_id": {"type": "string"},
                     "amount": {"type": "number"},
                     "currency": {"type": "string"},
-                    "customer": {
-                        "type": "object",
-                        "required": ["id", "name"],
-                        "properties": {
-                            "id": {"type": "string"},
-                            "name": {"type": "string"},
-                            "email": {"type": "string"}
-                        }
-                    }
+                    "timestamp": {"type": "string"},
+                    "description": {"type": "string"},
+                    "status": {"type": "string"}
+                }
+            },
+            "user_profile": {
+                "type": "object",
+                "required": ["id", "name", "email"],
+                "properties": {
+                    "id": {"type": "string"},
+                    "name": {"type": "string"},
+                    "email": {"type": "string"},
+                    "preferences": {"type": "object"}
                 }
             }
         }
         
-    def _detect_schema_type(self, data: Dict) -> str:
-        # Try to determine which schema the JSON matches
-        if all(key in data for key in ["event_type", "timestamp", "data"]):
-            return "webhook"
-        elif all(key in data for key in ["transaction_id", "amount", "currency"]):
-            return "transaction"
-        else:
-            return "unknown"
-            
-    def _validate_schema(self, data: Dict, schema_type: str) -> Dict[str, Any]:
+    def _validate_schema(self, data: Dict[str, Any], schema_type: str) -> List[str]:
+        """Validate JSON against schema and return any validation errors."""
         if schema_type not in self.schemas:
-            return {
-                "valid": False,
-                "errors": ["Unknown schema type"]
-            }
+            return ["Unknown schema type"]
             
         try:
             validate(instance=data, schema=self.schemas[schema_type])
-            return {
-                "valid": True,
-                "errors": []
-            }
+            return []
         except ValidationError as e:
+            return [e.message]
+            
+    async def _analyze_content(self, data: Dict[str, Any]) -> Dict[str, Any]:
+        """Analyze JSON content for potential issues or insights."""
+        # Convert data to string for the model
+        json_str = json.dumps(data, indent=2)
+        
+        prompt = f"""Analyze the following JSON data for potential issues, risks, or notable patterns.
+        Respond in JSON format with the following structure:
+        {{
+            "schema_type": "transaction|user_profile|unknown",
+            "risk_level": "high|medium|low",
+            "findings": ["finding1", "finding2"],
+            "recommendations": ["rec1", "rec2"]
+        }}
+        
+        JSON data:
+        {json_str}
+        """
+        
+        try:
+            response = await self.model.generate_content(prompt)
+            return json.loads(response.text)
+        except Exception as e:
+            logger.error(f"Content analysis failed: {str(e)}")
             return {
-                "valid": False,
-                "errors": [str(e)]
+                "schema_type": "unknown",
+                "risk_level": "unknown",
+                "findings": [],
+                "recommendations": []
             }
             
-    def _check_risk_indicators(self, data: Dict) -> Dict[str, Any]:
-        risk_indicators = []
-        
-        # Check for transaction-specific risks
-        if "amount" in data:
-            if data["amount"] > 10000:
-                risk_indicators.append("High value transaction")
-                
-        # Check for suspicious patterns
-        if "event_type" in data and data["event_type"] in ["account.created", "password.changed"]:
-            if "ip_address" in data.get("data", {}):
-                risk_indicators.append("Security-sensitive operation")
-                
-        return {
-            "has_risks": len(risk_indicators) > 0,
-            "risk_indicators": risk_indicators
-        }
-        
     async def process(self, file_path: Path) -> Dict[str, Any]:
-        # Read and parse JSON
-        with open(file_path, 'r') as f:
-            try:
+        """Process JSON file and return analysis."""
+        try:
+            # Read and parse JSON
+            with open(file_path, 'r') as f:
                 data = json.load(f)
-            except json.JSONDecodeError as e:
-                return {
-                    "valid": False,
-                    "schema_type": "invalid",
-                    "validation_result": {
-                        "valid": False,
-                        "errors": [f"Invalid JSON: {str(e)}"]
-                    },
-                    "risk_assessment": {
-                        "has_risks": False,
-                        "risk_indicators": []
-                    }
-                }
                 
-        # Process JSON
-        schema_type = self._detect_schema_type(data)
-        validation_result = self._validate_schema(data, schema_type)
-        risk_assessment = self._check_risk_indicators(data)
-        
-        return {
-            "valid": validation_result["valid"],
-            "schema_type": schema_type,
-            "validation_result": validation_result,
-            "risk_assessment": risk_assessment,
-            "data": data
-        } 
+            # Analyze content
+            analysis = await self._analyze_content(data)
+            
+            # Validate against schema if type is known
+            validation_errors = []
+            if analysis["schema_type"] in self.schemas:
+                validation_errors = self._validate_schema(data, analysis["schema_type"])
+                
+            # Check for high-value transactions
+            high_value_threshold = 10000  # Configure as needed
+            is_high_value = False
+            if analysis["schema_type"] == "transaction":
+                amount = data.get("amount", 0)
+                is_high_value = amount >= high_value_threshold
+                
+            # Prepare result
+            result = {
+                "content": {
+                    "schema_type": analysis["schema_type"],
+                    "validation_errors": validation_errors,
+                    "data_summary": {
+                        k: v for k, v in data.items()
+                        if k in ["id", "timestamp", "type", "status"]  # Safe fields to include
+                    }
+                },
+                "analysis": analysis,
+                "flags": {
+                    "is_valid": len(validation_errors) == 0,
+                    "is_high_value": is_high_value,
+                    "needs_review": analysis["risk_level"] == "high" or is_high_value
+                },
+                "suggested_actions": []
+            }
+            
+            # Add suggested actions based on analysis
+            if is_high_value:
+                result["suggested_actions"].append({
+                    "type": "risk_alert",
+                    "priority": "high",
+                    "reason": f"High-value transaction (Amount: {data.get('amount')})"
+                })
+                
+            if analysis["risk_level"] == "high":
+                result["suggested_actions"].append({
+                    "type": "flag_for_review",
+                    "priority": "high",
+                    "reason": "High risk level detected"
+                })
+                
+            if not result["flags"]["is_valid"]:
+                result["suggested_actions"].append({
+                    "type": "validation_error",
+                    "priority": "medium",
+                    "reason": "Schema validation failed"
+                })
+                
+            logger.info(f"JSON processing complete for {file_path.name}")
+            return result
+            
+        except json.JSONDecodeError as e:
+            logger.error(f"Invalid JSON format: {str(e)}")
+            raise
+        except Exception as e:
+            logger.error(f"JSON processing error: {str(e)}")
+            raise 
