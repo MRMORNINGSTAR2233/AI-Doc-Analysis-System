@@ -1,4 +1,4 @@
-from fastapi import FastAPI, UploadFile, File, HTTPException, BackgroundTasks
+from fastapi import FastAPI, UploadFile, File, WebSocket, WebSocketDisconnect, HTTPException, BackgroundTasks
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from pathlib import Path
@@ -7,10 +7,14 @@ import aiofiles
 import os
 from datetime import datetime
 import logging
-from typing import Dict, Any
+from typing import Dict, Any, List, Optional
 from dotenv import load_dotenv
+import uuid
+import tempfile
+import asyncio
+from pydantic import BaseModel
 
-from langgraph_core.classifier_agent import ClassifierAgent
+from langgraph_core.classifier_agent import ClassifierAgent, ProcessingStage
 from langgraph_core.email_agent import EmailAgent
 from langgraph_core.json_agent import JSONAgent
 from langgraph_core.pdf_agent import PDFAgent
@@ -54,6 +58,40 @@ except Exception as e:
     logger.error(f"Failed to initialize components: {str(e)}")
     raise
 
+# In-memory storage for WebSocket connections and processing results
+class ConnectionManager:
+    def __init__(self):
+        self.active_connections: Dict[str, WebSocket] = {}
+        self.processing_results: Dict[str, Dict[str, Any]] = {}
+        
+    async def connect(self, task_id: str, websocket: WebSocket):
+        await websocket.accept()
+        self.active_connections[task_id] = websocket
+        
+    def disconnect(self, task_id: str):
+        if task_id in self.active_connections:
+            del self.active_connections[task_id]
+            
+    async def send_update(self, task_id: str, data: Dict[str, Any]):
+        if task_id in self.active_connections:
+            await self.active_connections[task_id].send_json(data)
+            
+    def store_result(self, task_id: str, result: Dict[str, Any]):
+        self.processing_results[task_id] = result
+        
+    def get_result(self, task_id: str) -> Optional[Dict[str, Any]]:
+        return self.processing_results.get(task_id)
+
+manager = ConnectionManager()
+
+class TaskInfo(BaseModel):
+    task_id: str
+    status: str
+    created_at: datetime
+    
+    class Config:
+        from_attributes = True
+
 def cleanup_file(file_path: Path):
     """Clean up uploaded file after processing."""
     try:
@@ -68,85 +106,185 @@ async def upload_file(
     background_tasks: BackgroundTasks = None
 ):
     try:
-        # Create uploads directory if it doesn't exist
-        upload_dir = Path(os.getenv("UPLOAD_DIR", "shared/uploads"))
-        upload_dir.mkdir(parents=True, exist_ok=True)
+        # Generate a unique task ID
+        task_id = str(uuid.uuid4())
         
-        # Generate unique filename
-        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        file_path = upload_dir / f"{timestamp}_{file.filename}"
+        # Create a temporary file
+        suffix = Path(file.filename).suffix
+        with tempfile.NamedTemporaryFile(delete=False, suffix=suffix) as temp:
+            temp_path = Path(temp.name)
+            content = await file.read()
+            temp.write(content)
         
-        # Save uploaded file
-        try:
-            async with aiofiles.open(file_path, 'wb') as out_file:
-                content = await file.read()
-                await out_file.write(content)
-        except Exception as e:
-            raise HTTPException(
-                status_code=500,
-                detail=f"Failed to save file: {str(e)}"
-            )
-            
         # Schedule file cleanup
         if background_tasks:
-            background_tasks.add_task(cleanup_file, file_path)
+            background_tasks.add_task(cleanup_file, temp_path)
             
-        try:
-            # Classify input
-            classification = await classifier_agent.classify(file_path)
-            
-            # Process based on classification
-            if classification["format"] == "email":
-                result = await email_agent.process(file_path)
-            elif classification["format"] == "json":
-                result = await json_agent.process(file_path)
-            elif classification["format"] == "pdf":
-                result = await pdf_agent.process(file_path)
-            else:
-                raise HTTPException(
-                    status_code=400,
-                    detail=f"Unsupported file format: {classification['format']}"
-                )
-                
-            # Route actions
-            actions = await action_router.route(result)
-            
-            # Store in memory
-            try:
-                memory_id = await memory_manager.store_processing_result(
-                    classification=classification,
-                    processing_result=result,
-                    actions=actions
-                )
-            except Exception as e:
-                logger.error(f"Failed to store in memory: {str(e)}")
-                memory_id = None
-                
-            return JSONResponse(
-                status_code=200,
-                content={
-                    "status": "success",
-                    "memory_id": memory_id,
-                    "classification": classification,
-                    "processing_result": result,
-                    "actions": actions
-                }
-            )
-            
-        except Exception as e:
-            raise HTTPException(
-                status_code=500,
-                detail=f"Processing error: {str(e)}"
-            )
-            
-    except HTTPException:
-        raise
+        # Process file asynchronously
+        asyncio.create_task(process_file(task_id, temp_path, file.filename))
+        
+        return {
+            "task_id": task_id,
+            "status": "processing",
+            "message": "File upload successful. Connect to WebSocket for progress updates."
+        }
     except Exception as e:
-        logger.error(f"Unexpected error: {str(e)}")
-        raise HTTPException(
-            status_code=500,
-            detail="An unexpected error occurred"
-        )
+        logger.error(f"Error during file upload: {str(e)}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"An error occurred during file upload: {str(e)}")
+
+@app.get("/api/tasks/{task_id}")
+async def get_task_result(task_id: str):
+    result = manager.get_result(task_id)
+    if not result:
+        raise HTTPException(status_code=404, detail="Task not found or processing not completed")
+    return result
+
+@app.websocket("/ws/{task_id}")
+async def websocket_endpoint(websocket: WebSocket, task_id: str):
+    await manager.connect(task_id, websocket)
+    try:
+        # Send initial connection confirmation
+        await manager.send_update(task_id, {
+            "type": "connection",
+            "status": "connected",
+            "task_id": task_id,
+            "timestamp": datetime.now().isoformat()
+        })
+        
+        # If result already exists, send it immediately
+        if result := manager.get_result(task_id):
+            await manager.send_update(task_id, {
+                "type": "result",
+                "status": "completed",
+                "data": result,
+                "timestamp": datetime.now().isoformat()
+            })
+        
+        # Keep connection open until client disconnects
+        while True:
+            data = await websocket.receive_text()
+            # Handle any client messages if needed
+            
+    except WebSocketDisconnect:
+        manager.disconnect(task_id)
+
+async def process_file(task_id: str, file_path: Path, original_filename: str):
+    """Process file asynchronously and send updates via WebSocket"""
+    try:
+        # Progress callback function to send updates
+        async def progress_callback(update: Dict[str, Any]):
+            await manager.send_update(task_id, {
+                "type": "progress",
+                "status": "processing",
+                "data": update,
+                "task_id": task_id,
+                "timestamp": datetime.now().isoformat()
+            })
+        
+        # Initialize classifier agent with progress callback
+        classifier = ClassifierAgent(progress_callback=progress_callback)
+        
+        # Send initial processing status
+        await progress_callback({
+            "stage": ProcessingStage.INITIALIZING.value,
+            "progress": 0.0,
+            "details": f"Starting processing of {original_filename}",
+            "filename": original_filename
+        })
+        
+        # STEP 1: Classify the document to determine its type
+        classification_result = await classifier.classify(file_path)
+        
+        # Send progress update after classification
+        await progress_callback({
+            "stage": "specialized_processing",
+            "progress": 0.5,
+            "details": f"Document classified as {classification_result['format']}. Processing with specialized agent.",
+            "format": classification_result['format']
+        })
+        
+        # STEP 2: Use specialized agent based on format
+        specialized_result = {}
+        if classification_result['format'] == 'email':
+            # Process with email agent
+            specialized_result = await email_agent.process(file_path)
+        elif classification_result['format'] == 'pdf':
+            # Process with PDF agent
+            specialized_result = await pdf_agent.process(file_path)
+        elif classification_result['format'] == 'json':
+            # Process with JSON agent
+            specialized_result = await json_agent.process(file_path)
+        else:
+            # For other formats, use the classification result directly
+            specialized_result = classification_result
+        
+        # Send progress update after specialized processing
+        await progress_callback({
+            "stage": "action_routing",
+            "progress": 0.8,
+            "details": "Determining actions based on document analysis",
+            "format": classification_result['format']
+        })
+        
+        # STEP 3: Route actions based on document analysis
+        # Combine classification and specialized processing results
+        combined_result = {
+            **classification_result,
+            "specialized_analysis": specialized_result
+        }
+        
+        # Determine actions using the action router
+        actions = await action_router.determine_actions(combined_result)
+        
+        # Execute high-priority automated actions
+        await action_router.execute_actions(actions, priority_threshold="medium")
+        
+        # STEP 4: Prepare and store final result
+        final_result = {
+            "task_id": task_id,
+            "original_filename": original_filename,
+            "timestamp": datetime.now().isoformat(),
+            "classification": classification_result,
+            "specialized_analysis": specialized_result,
+            "actions": actions,
+            "format": classification_result['format'],
+            "intent": classification_result['intent'],
+            "routing": classification_result['routing'],
+            "validation": classification_result['validation']
+        }
+        
+        # Store the result
+        manager.store_result(task_id, final_result)
+        
+        # Send completion notification
+        await manager.send_update(task_id, {
+            "type": "result",
+            "status": "completed",
+            "data": final_result,
+            "task_id": task_id,
+            "timestamp": datetime.now().isoformat()
+        })
+        
+    except Exception as e:
+        logger.error(f"Error processing file: {str(e)}", exc_info=True)
+        # Send error notification
+        await manager.send_update(task_id, {
+            "type": "error",
+            "status": "failed",
+            "error": str(e),
+            "task_id": task_id,
+            "timestamp": datetime.now().isoformat()
+        })
+    finally:
+        # Clean up temporary file
+        try:
+            if file_path and Path(file_path).exists():
+                os.unlink(file_path)
+                logger.debug(f"Successfully removed temporary file: {file_path}")
+            else:
+                logger.debug(f"Temporary file already removed or does not exist: {file_path}")
+        except Exception as e:
+            logger.error(f"Error removing temporary file: {str(e)}")
 
 @app.get("/api/memory/{memory_id}")
 async def get_memory(memory_id: str):
@@ -266,6 +404,52 @@ async def validation_error(data: Dict[str, Any]):
             detail="Failed to log validation error"
         )
 
+@app.post("/manual_review")
+async def manual_review(data: Dict[str, Any]):
+    try:
+        # Log the manual review request
+        logger.info(f"Manual Review Request: {json.dumps(data)}")
+        
+        return JSONResponse(
+            status_code=200,
+            content={
+                "status": "queued",
+                "timestamp": datetime.now().isoformat(),
+                "review_id": f"REVIEW-{datetime.now().strftime('%Y%m%d-%H%M%S')}",
+                "priority": data.get("priority", "medium"),
+                "estimated_review_time": "24h"
+            }
+        )
+    except Exception as e:
+        logger.error(f"Manual review request failed: {str(e)}")
+        raise HTTPException(
+            status_code=500,
+            detail="Failed to queue manual review"
+        )
+
+@app.post("/financial_review")
+async def financial_review(data: Dict[str, Any]):
+    try:
+        # Log the financial review request
+        logger.info(f"Financial Review Request: {json.dumps(data)}")
+        
+        return JSONResponse(
+            status_code=200,
+            content={
+                "status": "queued",
+                "timestamp": datetime.now().isoformat(),
+                "review_id": f"FIN-{datetime.now().strftime('%Y%m%d-%H%M%S')}",
+                "priority": data.get("priority", "high"),
+                "assigned_to": "finance_team"
+            }
+        )
+    except Exception as e:
+        logger.error(f"Financial review request failed: {str(e)}")
+        raise HTTPException(
+            status_code=500,
+            detail="Failed to queue financial review"
+        )
+
 # Health check endpoint
 @app.get("/health")
 async def health_check():
@@ -286,7 +470,6 @@ async def health_check():
 
 if __name__ == "__main__":
     import uvicorn
-    import asyncio
     
     # Ensure required directories exist
     for path in ["shared/uploads", "shared/output_logs", "memory"]:

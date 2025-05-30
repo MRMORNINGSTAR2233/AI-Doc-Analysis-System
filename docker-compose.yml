@@ -2,35 +2,41 @@ version: '3.8'
 
 services:
   backend:
-    build: ./backend
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
     ports:
       - "8000:8000"
     environment:
       - GOOGLE_API_KEY=${GOOGLE_API_KEY}
-      - API_BASE_URL=http://localhost:8000
-      - LOG_LEVEL=INFO
       - UPLOAD_DIR=/app/shared/uploads
-      - OUTPUT_DIR=/app/shared/output_logs
-      - SQLITE_DB_PATH=/app/memory/agent_memory.db
-      - CHROMA_DB_PATH=/app/memory/chroma_db
+      - PYTHONUNBUFFERED=1
     volumes:
-      - ./backend/shared:/app/shared
-      - ./backend/memory:/app/memory
+      - ./backend:/app
+      - shared_data:/app/shared
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      test: ["CMD", "curl", "-f", "http://localhost:8000/"]
       interval: 30s
       timeout: 10s
       retries: 3
+      start_period: 10s
+    restart: unless-stopped
 
   frontend:
-    build: ./frontend
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
     ports:
       - "3000:3000"
     environment:
       - NEXT_PUBLIC_API_URL=http://localhost:8000
+      - NEXT_PUBLIC_WS_URL=ws://localhost:8000
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
     depends_on:
-      backend:
-        condition: service_healthy
+      - backend
+    restart: unless-stopped
 
 volumes:
   shared_data:

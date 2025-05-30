@@ -3,7 +3,7 @@ import google.generativeai as genai
 from pathlib import Path
 import json
 import logging
-from typing import Dict, Any, List, Tuple, Optional, Set
+from typing import Dict, Any, List, Tuple, Optional, Set, Callable
 import mimetypes
 from email import message_from_file
 import pypdf
@@ -17,6 +17,7 @@ import asyncio
 from dataclasses import dataclass
 from enum import Enum
 import stat
+import time
 
 logger = logging.getLogger(__name__)
 
@@ -43,8 +44,18 @@ class DocumentType(Enum):
     TEXT = "text"
     UNKNOWN = "unknown"
 
+class ProcessingStage(Enum):
+    INITIALIZING = "initializing"
+    FORMAT_DETECTION = "format_detection"
+    CONTENT_EXTRACTION = "content_extraction"
+    ANALYSIS = "analysis"
+    CLASSIFICATION = "classification"
+    VALIDATION = "validation"
+    COMPLETED = "completed"
+    ERROR = "error"
+
 class ClassifierAgent:
-    def __init__(self):
+    def __init__(self, progress_callback: Callable[[Dict[str, Any]], None] = None):
         # Initialize Google Gemini with enhanced configuration
         api_key = os.getenv("GOOGLE_API_KEY")
         if not api_key:
@@ -67,6 +78,28 @@ class ClassifierAgent:
             'concurrent_analysis': True,
             'enable_advanced_features': True
         }
+        
+        # Progress callback for realtime updates
+        self.progress_callback = progress_callback
+
+    def _update_progress(self, stage: ProcessingStage, progress: float, details: str = "", data: Dict[str, Any] = None):
+        """Send progress updates through the callback if available"""
+        if not self.progress_callback:
+            return
+            
+        update = {
+            "stage": stage.value,
+            "progress": progress,
+            "details": details,
+            "timestamp": datetime.now().isoformat(),
+            "data": data or {}
+        }
+        
+        try:
+            # Create a task to run the callback asynchronously without awaiting
+            asyncio.create_task(self.progress_callback(update))
+        except Exception as e:
+            logger.warning(f"Failed to send progress update: {str(e)}")
 
     def _initialize_business_intents(self) -> Dict[str, Dict[str, Any]]:
         """Initialize enhanced business intents with weighted patterns and metadata."""
@@ -173,51 +206,73 @@ class ClassifierAgent:
     async def classify(self, file_path: Path) -> Dict[str, Any]:
         """Enhanced document classification with advanced error handling and validation."""
         try:
+            self._update_progress(ProcessingStage.INITIALIZING, 0.0, "Starting document classification")
+            
             # Check cache first
             cache_key = self._generate_cache_key(file_path)
             if cached_result := self.content_cache.get(cache_key):
                 if self._is_cache_valid(cached_result):
+                    self._update_progress(ProcessingStage.COMPLETED, 1.0, "Retrieved from cache", 
+                                         {"from_cache": True})
                     return cached_result['result']
 
             # Detect format with enhanced validation
+            self._update_progress(ProcessingStage.FORMAT_DETECTION, 0.1, "Detecting document format")
             format_type = await self._detect_format_advanced(file_path)
             
             # Handle unknown format
             if format_type == DocumentType.UNKNOWN:
+                self._update_progress(ProcessingStage.ERROR, 0.0, "Unsupported file format")
                 raise ValueError(f"Unsupported file format for: {file_path.name}")
             
             # Extract content with advanced processing
+            self._update_progress(ProcessingStage.CONTENT_EXTRACTION, 0.3, 
+                                 f"Extracting content from {format_type.value} document")
             content = await self._extract_content_advanced(file_path, format_type.value)
             if not content.strip():
+                self._update_progress(ProcessingStage.ERROR, 0.0, "Empty document content")
                 raise ValueError("Empty document content")
                 
             # Perform concurrent analysis if enabled
+            self._update_progress(ProcessingStage.ANALYSIS, 0.5, "Analyzing document content")
             if self.config['concurrent_analysis']:
                 analysis_results = await self._analyze_content_concurrent(content)
             else:
                 analysis_results = await self._analyze_content_sequential(content)
             
             # Enhanced result combination with weighted scoring
+            self._update_progress(ProcessingStage.CLASSIFICATION, 0.7, "Determining document classification")
             final_result = self._combine_analysis_results_advanced(analysis_results)
             
             # Add comprehensive metadata and analysis
+            self._update_progress(ProcessingStage.VALIDATION, 0.9, "Finalizing results")
             result = {
                 "format": format_type.value,
                 "intent": self._enhance_intent_result(final_result),
                 "metadata": await self._get_enhanced_metadata(file_path),
                 "analysis": await self._generate_advanced_analysis(final_result, content),
                 "routing": self._generate_enhanced_routing(final_result),
-                "validation": self._validate_result_comprehensive(final_result)
+                "validation": self._validate_result_comprehensive(final_result),
+                "processing_time": {
+                    "start_time": datetime.now().isoformat(),
+                    "duration_ms": int(time.time() * 1000) - int(datetime.now().timestamp() * 1000),
+                    "cached": False
+                }
             }
             
             # Cache the result
             self._cache_result(cache_key, result)
             
+            self._update_progress(ProcessingStage.COMPLETED, 1.0, 
+                                 f"Classification complete: {result['format']} - {result['intent']['type']} ({result['intent']['confidence']:.1%})",
+                                 {"format": result['format'], "intent": result['intent']['type']})
+                                 
             logger.info(f"Advanced classification complete: {result['format']} - {result['intent']['type']} ({result['intent']['confidence']:.1%})")
             return result
             
         except Exception as e:
             logger.error(f"Classification error: {str(e)}", exc_info=True)
+            self._update_progress(ProcessingStage.ERROR, 0.0, f"Error during classification: {str(e)}")
             return await self._generate_advanced_fallback(file_path, str(e))
 
     async def _analyze_content_sequential(self, content: str) -> List[AnalysisResult]:

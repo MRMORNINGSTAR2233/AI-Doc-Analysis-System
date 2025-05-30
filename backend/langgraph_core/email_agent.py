@@ -152,7 +152,8 @@ class EmailAgent:
         ---"""
 
         try:
-            response = await self.model.generate_content(
+            # Generate content with Google Gemini model (not awaitable)
+            response = self.model.generate_content(
                 prompt,
                 generation_config={
                     'temperature': 0.3,
@@ -161,7 +162,22 @@ class EmailAgent:
                 }
             )
             
-            result = json.loads(response.text.strip())
+            # Extract the response text
+            response_text = response.text.strip()
+            
+            # Parse the JSON response
+            try:
+                result = json.loads(response_text)
+            except json.JSONDecodeError:
+                # Try to extract JSON from response if it contains additional text
+                json_match = re.search(r'({.*})', response_text.replace('\n', ' '))
+                if json_match:
+                    result = json.loads(json_match.group(1))
+                else:
+                    # If JSON parsing fails, return a fallback analysis
+                    logger.warning(f"Failed to parse JSON from response: {response_text[:100]}...")
+                    return self._generate_fallback_analysis()
+                
             return self._validate_analysis_result(result)
             
         except Exception as e:
