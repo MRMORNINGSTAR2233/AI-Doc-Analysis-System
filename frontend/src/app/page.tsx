@@ -202,6 +202,7 @@ export default function Home() {
                     
                     <Tabs.Content value="classification" className="space-y-4">
                       <div className="rounded-md bg-gray-50 p-4">
+                        {/* Format and Intent */}
                         <div className="flex items-center space-x-2">
                           {getFormatIcon(result.classification.format)}
                           <span className="text-sm font-medium text-gray-900">
@@ -209,26 +210,155 @@ export default function Home() {
                           </span>
                         </div>
                         <Separator.Root className="my-4 h-px bg-gray-200" />
-                        <div className="text-sm text-gray-600">
-                          <p>Intent Type: {result.classification.intent.type}</p>
-                          <p>Confidence: {(result.classification.intent.confidence * 100).toFixed(1)}%</p>
+                        
+                        {/* Intent Details */}
+                        <div className="text-sm text-gray-600 space-y-3">
+                          <div>
+                            <p className="font-medium text-gray-900">Intent Analysis</p>
+                            <div className="mt-2 space-y-2">
+                              <div className="flex items-center justify-between">
+                                <span>Type:</span>
+                                <span className={`inline-flex items-center px-2 py-1 rounded-md text-xs font-medium ${
+                                  result.classification.intent.confidence >= 0.7 
+                                    ? 'bg-green-100 text-green-700'
+                                    : result.classification.intent.confidence >= 0.4
+                                    ? 'bg-yellow-100 text-yellow-700'
+                                    : 'bg-red-100 text-red-700'
+                                }`}>
+                                  {result.classification.intent.type}
+                                </span>
+                              </div>
+                              <div className="flex items-center justify-between">
+                                <span>Confidence:</span>
+                                <div className="flex items-center space-x-2">
+                                  <div className="w-24 h-2 bg-gray-200 rounded-full overflow-hidden">
+                                    <div 
+                                      className={`h-full rounded-full ${
+                                        result.classification.intent.confidence >= 0.7 
+                                          ? 'bg-green-500'
+                                          : result.classification.intent.confidence >= 0.4
+                                          ? 'bg-yellow-500'
+                                          : 'bg-red-500'
+                                      }`}
+                                      style={{ width: `${result.classification.intent.confidence * 100}%` }}
+                                    />
+                                  </div>
+                                  <span>{(result.classification.intent.confidence * 100).toFixed(1)}%</span>
+                                </div>
+                              </div>
+                            </div>
+                            {result.classification.intent.confidence_explanation && (
+                              <div className="mt-2 text-xs text-gray-500">
+                                {result.classification.intent.confidence_explanation}
+                              </div>
+                            )}
+                            <div className="mt-3 p-3 bg-gray-50 rounded-md">
+                              <p className="text-sm">{result.classification.intent.reasoning}</p>
+                            </div>
+                          </div>
+
+                          {/* Keywords */}
                           {result.classification.intent.keywords?.length > 0 && (
-                            <div className="mt-2">
-                              <p className="font-medium">Keywords:</p>
-                              <ul className="list-disc list-inside">
+                            <div className="mt-4">
+                              <p className="font-medium text-gray-900">Detected Keywords</p>
+                              <div className="flex flex-wrap gap-2 mt-2">
                                 {result.classification.intent.keywords.map((keyword: string, index: number) => (
-                                  <li key={index}>{keyword}</li>
+                                  <span 
+                                    key={index} 
+                                    className={`inline-flex items-center px-2 py-1 rounded-md text-xs font-medium ${
+                                      result.classification.intent.confidence >= 0.7
+                                        ? 'bg-green-100 text-green-700'
+                                        : 'bg-blue-100 text-blue-700'
+                                    }`}
+                                  >
+                                    {keyword}
+                                  </span>
                                 ))}
-                              </ul>
+                              </div>
                             </div>
                           )}
-                          {result.classification.intent.reasoning && (
-                            <p className="mt-2">
-                              <span className="font-medium">Reasoning: </span>
-                              {result.classification.intent.reasoning}
-                            </p>
+
+                          {/* Key Entities */}
+                          {result.classification.analysis?.key_entities && (
+                            <div>
+                              <p className="font-medium text-gray-900">Detected Entities</p>
+                              <div className="grid grid-cols-2 gap-4 mt-2">
+                                {result.classification.analysis.key_entities.monetary_values?.length > 0 && (
+                                  <div>
+                                    <p className="text-xs font-medium text-gray-500">Monetary Values</p>
+                                    <ul className="mt-1 list-disc list-inside">
+                                      {result.classification.analysis.key_entities.monetary_values.map((value: string, index: number) => (
+                                        <li key={index} className="text-sm">{value}</li>
+                                      ))}
+                                    </ul>
+                                  </div>
+                                )}
+                                {result.classification.analysis.key_entities.dates?.length > 0 && (
+                                  <div>
+                                    <p className="text-xs font-medium text-gray-500">Dates</p>
+                                    <ul className="mt-1 list-disc list-inside">
+                                      {result.classification.analysis.key_entities.dates.map((date: string, index: number) => (
+                                        <li key={index} className="text-sm">{date}</li>
+                                      ))}
+                                    </ul>
+                                  </div>
+                                )}
+                              </div>
+                            </div>
                           )}
-                          <p className="mt-2">Memory ID: {result.memory_id}</p>
+
+                          {/* Routing Information */}
+                          <div>
+                            <p className="font-medium text-gray-900">Routing Details</p>
+                            <div className="mt-2 grid grid-cols-2 gap-4">
+                              <div>
+                                <p className="text-xs font-medium text-gray-500">Department</p>
+                                <p className="mt-1">{result.classification.routing.suggested_department}</p>
+                              </div>
+                              <div>
+                                <p className="text-xs font-medium text-gray-500">Priority</p>
+                                <span className={`inline-flex items-center px-2 py-1 rounded-md text-xs font-medium ${
+                                  result.classification.routing.suggested_priority === 'high' 
+                                    ? 'bg-red-100 text-red-700'
+                                    : 'bg-yellow-100 text-yellow-700'
+                                }`}>
+                                  {result.classification.routing.suggested_priority.toUpperCase()}
+                                </span>
+                              </div>
+                            </div>
+                          </div>
+
+                          {/* Suggested Actions */}
+                          {result.classification.analysis?.suggested_actions?.length > 0 && (
+                            <div>
+                              <p className="font-medium text-gray-900">Suggested Actions</p>
+                              <div className="mt-2 space-y-2">
+                                {result.classification.analysis.suggested_actions.map((action: any, index: number) => (
+                                  <div key={index} className="flex items-start space-x-2 p-2 rounded-md bg-white border border-gray-200">
+                                    <div className={`mt-0.5 w-2 h-2 rounded-full ${
+                                      action.priority === 'high' ? 'bg-red-500' : 'bg-yellow-500'
+                                    }`} />
+                                    <div>
+                                      <p className="text-sm font-medium">{action.type}</p>
+                                      <p className="text-xs text-gray-500">{action.reason}</p>
+                                    </div>
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+                          )}
+
+                          {/* Document Summary */}
+                          {result.classification.analysis?.summary && (
+                            <div>
+                              <p className="font-medium text-gray-900">Summary</p>
+                              <p className="mt-1 text-sm">{result.classification.analysis.summary}</p>
+                            </div>
+                          )}
+
+                          <div className="mt-4 pt-4 border-t border-gray-200">
+                            <p className="text-xs text-gray-500">Memory ID: {result.memory_id}</p>
+                          </div>
                         </div>
                       </div>
                     </Tabs.Content>

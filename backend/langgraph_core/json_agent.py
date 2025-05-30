@@ -92,66 +92,213 @@ class JSONAgent:
         
     async def _analyze_risk(self, data: Dict[str, Any]) -> Dict[str, Any]:
         """Analyze transaction risk using Gemini."""
-        prompt = f"""Analyze this financial transaction data for risks and anomalies.
-        Focus on:
-        - Transaction amount and currency
-        - Customer profile and history
-        - Payment method and timing
-        - Unusual patterns or red flags
+        prompt = f"""Analyze this financial transaction or user data for risks, patterns, and business impact.
 
-        Provide your analysis in this exact JSON format:
+        Focus on these key areas:
+        - Transaction amount and patterns
+        - Customer profile and history
+        - Risk indicators and anomalies
+        - Compliance requirements
+        - Business impact and urgency
+
+        You MUST respond with ONLY a JSON object in this exact format:
         {{
             "risk_level": "high|medium|low",
-            "risk_factors": ["factor1", "factor2"],
-            "anomalies_detected": ["anomaly1", "anomaly2"],
-            "recommendations": ["action1", "action2"],
-            "requires_review": true|false
+            "risk_score": <float between 0.0-1.0>,
+            "risk_factors": ["specific risk factor 1", "specific risk factor 2"],
+            "anomalies_detected": ["specific anomaly 1", "specific anomaly 2"],
+            "compliance_flags": ["specific compliance issue 1", "specific compliance issue 2"],
+            "business_impact": {{
+                "severity": "high|medium|low",
+                "potential_loss": "<estimated value if applicable>",
+                "urgency": "immediate|high|medium|low"
+            }},
+            "recommendations": ["specific action 1", "specific action 2"],
+            "confidence_level": <float between 0.0-1.0>,
+            "analysis_summary": "Brief explanation of key findings"
         }}
 
-        Transaction data:
+        Data to analyze:
         ---
         {json.dumps(data, indent=2)}
-        ---
-
-        Respond with ONLY the JSON:"""
+        ---"""
 
         try:
             # Create new model instance for clean context
             model = genai.GenerativeModel('gemini-1.5-flash')
-            response = model.generate_content(prompt)
             
-            # Parse and validate response
+            # Generate response with safety settings
+            response = model.generate_content(
+                prompt,
+                generation_config={
+                    'temperature': 0.3,
+                    'top_p': 0.8,
+                    'top_k': 40
+                }
+            )
+            
+            # Clean and parse response
             response_text = response.text.strip()
             if "```" in response_text:
-                response_text = response_text.split("```")[1].replace("json", "").strip()
+                response_text = response_text.split("```")[1]
+                if response_text.startswith("json"):
+                    response_text = response_text[4:].strip()
             
-            result = json.loads(response_text)
+            try:
+                result = json.loads(response_text)
+            except json.JSONDecodeError as e:
+                logger.error(f"Failed to parse Gemini response as JSON: {response_text}")
+                return self._generate_fallback_risk_analysis(data, str(e))
             
-            # Validate risk level
-            valid_risk_levels = ["high", "medium", "low"]
-            if result["risk_level"] not in valid_risk_levels:
-                result["risk_level"] = "unknown"
-            
-            # Ensure all lists are valid
-            for field in ["risk_factors", "anomalies_detected", "recommendations"]:
-                if not isinstance(result[field], list):
-                    result[field] = []
-            
-            # Ensure requires_review is boolean
-            result["requires_review"] = bool(result.get("requires_review", True))
+            # Validate and clean result
+            result = self._validate_risk_analysis(result, data)
             
             return result
             
         except Exception as e:
             logger.error(f"Risk analysis failed: {str(e)}")
-            return {
-                "risk_level": "unknown",
-                "risk_factors": [],
-                "anomalies_detected": [],
-                "recommendations": [],
-                "requires_review": True
+            return self._generate_fallback_risk_analysis(data, str(e))
+
+    def _validate_risk_analysis(self, result: Dict[str, Any], data: Dict[str, Any]) -> Dict[str, Any]:
+        """Validate and clean risk analysis result."""
+        # Ensure valid risk level
+        valid_risk_levels = ["high", "medium", "low"]
+        if not isinstance(result.get("risk_level"), str) or result["risk_level"].lower() not in valid_risk_levels:
+            result["risk_level"] = self._determine_fallback_risk_level(data)
+        
+        # Ensure valid risk score
+        try:
+            result["risk_score"] = float(result.get("risk_score", 0.5))
+            result["risk_score"] = max(0.0, min(1.0, result["risk_score"]))
+        except (TypeError, ValueError):
+            result["risk_score"] = 0.5
+        
+        # Ensure valid lists
+        for key in ["risk_factors", "anomalies_detected", "compliance_flags", "recommendations"]:
+            if not isinstance(result.get(key), list):
+                result[key] = []
+            result[key] = [str(item) for item in result[key] if item]
+        
+        # Validate business impact
+        if not isinstance(result.get("business_impact"), dict):
+            result["business_impact"] = {
+                "severity": "medium",
+                "potential_loss": "Unknown",
+                "urgency": "medium"
             }
+        
+        # Ensure valid confidence level
+        try:
+            result["confidence_level"] = float(result.get("confidence_level", 0.5))
+            result["confidence_level"] = max(0.0, min(1.0, result["confidence_level"]))
+        except (TypeError, ValueError):
+            result["confidence_level"] = 0.5
+        
+        # Add confidence explanation
+        result["confidence_explanation"] = self._get_confidence_explanation(result["confidence_level"])
+        
+        return result
+
+    def _determine_fallback_risk_level(self, data: Dict[str, Any]) -> str:
+        """Determine risk level based on basic data analysis."""
+        risk_level = "medium"  # Default risk level
+        
+        try:
+            # Check for high-value transactions
+            if "amount" in data and float(data["amount"]) > 10000:
+                risk_level = "high"
             
+            # Check for suspicious patterns
+            suspicious_keys = ["risk", "fraud", "alert", "warning", "suspicious"]
+            if any(key in str(data).lower() for key in suspicious_keys):
+                risk_level = "high"
+            
+            # Check for compliance-related content
+            compliance_keys = ["compliance", "regulation", "policy", "legal"]
+            if any(key in str(data).lower() for key in compliance_keys):
+                risk_level = "high"
+                
+        except:
+            pass
+            
+        return risk_level
+
+    def _get_confidence_explanation(self, confidence: float) -> str:
+        """Generate an explanation for the confidence score."""
+        if confidence >= 0.8:
+            return "High confidence based on clear data patterns and strong indicators"
+        elif confidence >= 0.6:
+            return "Medium confidence with moderate risk indicators present"
+        elif confidence >= 0.4:
+            return "Low-medium confidence due to mixed or unclear indicators"
+        else:
+            return "Low confidence due to insufficient or ambiguous data"
+
+    def _generate_fallback_risk_analysis(self, data: Dict[str, Any], error_msg: str) -> Dict[str, Any]:
+        """Generate a fallback risk analysis when the main analysis fails."""
+        risk_level = self._determine_fallback_risk_level(data)
+        
+        # Extract basic metrics
+        metrics = self._extract_basic_metrics(data)
+        
+        return {
+            "risk_level": risk_level,
+            "risk_score": 0.5 if risk_level == "medium" else 0.8,
+            "risk_factors": [
+                f"Automated fallback analysis due to: {error_msg}",
+                *metrics["risk_factors"]
+            ],
+            "anomalies_detected": metrics["anomalies"],
+            "compliance_flags": metrics["compliance_flags"],
+            "business_impact": {
+                "severity": risk_level,
+                "potential_loss": metrics["potential_loss"],
+                "urgency": "high" if risk_level == "high" else "medium"
+            },
+            "recommendations": [
+                "Conduct manual review due to analysis limitations",
+                "Verify transaction details with additional sources",
+                *metrics["recommendations"]
+            ],
+            "confidence_level": 0.4,
+            "confidence_explanation": "Limited confidence due to fallback analysis",
+            "analysis_summary": f"Basic risk assessment completed with limited analysis capabilities. {metrics['summary']}"
+        }
+
+    def _extract_basic_metrics(self, data: Dict[str, Any]) -> Dict[str, Any]:
+        """Extract basic metrics from the data for fallback analysis."""
+        metrics = {
+            "risk_factors": [],
+            "anomalies": [],
+            "compliance_flags": [],
+            "recommendations": [],
+            "potential_loss": "Unknown",
+            "summary": ""
+        }
+        
+        try:
+            # Check for monetary values
+            if "amount" in data:
+                amount = float(data["amount"])
+                metrics["potential_loss"] = f"${amount:,.2f}"
+                if amount > 10000:
+                    metrics["risk_factors"].append("High-value transaction")
+                    metrics["recommendations"].append("Require additional approval for high-value transaction")
+            
+            # Check for customer data
+            if "customer" in data:
+                metrics["risk_factors"].append("Customer data present - requires privacy consideration")
+                metrics["compliance_flags"].append("Personal data handling requirements")
+            
+            # Check for timestamps
+            if "timestamp" in data:
+                metrics["summary"] = f"Transaction dated {data['timestamp']}"
+            
+        except Exception as e:
+            logger.error(f"Error extracting basic metrics: {str(e)}")
+        
+        return metrics
+        
     async def process(self, file_path: Path) -> Dict[str, Any]:
         """Process JSON file and return analysis."""
         try:

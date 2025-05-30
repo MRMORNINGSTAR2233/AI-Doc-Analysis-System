@@ -3,9 +3,12 @@ import google.generativeai as genai
 from pathlib import Path
 import json
 import logging
-from email import message_from_file
-from bs4 import BeautifulSoup
-from typing import Dict, Any, Optional
+from typing import Dict, Any, List
+from email import message_from_file, policy
+from email.parser import Parser
+from email.policy import default
+import re
+from datetime import datetime
 
 logger = logging.getLogger(__name__)
 
@@ -19,149 +22,47 @@ class EmailAgent:
         genai.configure(api_key=api_key)
         self.model = genai.GenerativeModel('gemini-1.5-flash')
         
-    def _extract_email_content(self, file_path: Path) -> Dict[str, str]:
-        """Extract content from email file."""
-        with open(file_path) as email_file:
-            msg = message_from_file(email_file)
-            
-        # Get basic headers
-        headers = {
-            "subject": msg.get("subject", ""),
-            "from": msg.get("from", ""),
-            "to": msg.get("to", ""),
-            "date": msg.get("date", ""),
-            "cc": msg.get("cc", ""),
-            "reply-to": msg.get("reply-to", "")
-        }
-        
-        # Get body content
-        body = ""
-        if msg.is_multipart():
-            for part in msg.walk():
-                if part.get_content_type() == "text/plain":
-                    body = part.get_payload(decode=True).decode()
-                    break
-                elif part.get_content_type() == "text/html":
-                    html = part.get_payload(decode=True).decode()
-                    soup = BeautifulSoup(html, 'html.parser')
-                    body = soup.get_text()
-                    break
-        else:
-            body = msg.get_payload(decode=True).decode()
-            
-        return {
-            "headers": headers,
-            "body": body
-        }
-        
-    async def _analyze_content(self, text: str) -> Dict[str, Any]:
-        """Analyze email content for sentiment, urgency, and tone."""
-        prompt = f"""Analyze the following email for sentiment, urgency, and tone.
-        Respond in JSON format with:
-        {{
-            "sentiment": {{
-                "type": "positive|negative|neutral",
-                "score": 0.0-1.0,
-                "key_phrases": ["phrase1", "phrase2"]
-            }},
-            "urgency": {{
-                "level": "high|medium|low",
-                "time_sensitive": true|false,
-                "deadline_mentioned": true|false,
-                "deadline_text": "extracted deadline if mentioned"
-            }},
-            "tone": {{
-                "primary": "angry|polite|neutral|demanding|appreciative",
-                "formality": "formal|informal",
-                "politeness_score": 0.0-1.0
-            }},
-            "issue": {{
-                "category": "technical|billing|service|support|other",
-                "summary": "brief description of the main issue/request",
-                "action_items": ["action1", "action2"]
-            }}
-        }}
-        
-        Email text:
-        {text}
-        """
-        
-        try:
-            response = await self.model.generate_content(prompt)
-            return json.loads(response.text)
-        except Exception as e:
-            logger.error(f"Content analysis failed: {str(e)}")
-            return {
-                "sentiment": {"type": "unknown", "score": 0.0, "key_phrases": []},
-                "urgency": {"level": "unknown", "time_sensitive": False, "deadline_mentioned": False},
-                "tone": {"primary": "unknown", "formality": "unknown", "politeness_score": 0.0},
-                "issue": {"category": "unknown", "summary": "", "action_items": []}
-            }
-            
     async def process(self, file_path: Path) -> Dict[str, Any]:
         """Process email file and return analysis."""
         try:
-            # Extract email content
-            email_content = self._extract_email_content(file_path)
+            # Parse email
+            email_data = self._parse_email(file_path)
             
             # Analyze content
-            analysis = await self._analyze_content(
-                f"Subject: {email_content['headers']['subject']}\n\n{email_content['body']}"
-            )
+            content_analysis = await self._analyze_content(email_data)
+            
+            # Extract entities
+            entities = self._extract_entities(email_data["body"])
+            
+            # Generate actions
+            actions = self._generate_actions(content_analysis, email_data, entities)
             
             # Prepare result
             result = {
                 "metadata": {
-                    "sender": email_content["headers"]["from"],
-                    "recipient": email_content["headers"]["to"],
-                    "cc": email_content["headers"]["cc"],
-                    "reply_to": email_content["headers"]["reply-to"],
-                    "date": email_content["headers"]["date"],
-                    "subject": email_content["headers"]["subject"]
+                    "subject": email_data["subject"],
+                    "from": email_data["from"],
+                    "to": email_data["to"],
+                    "date": email_data["date"],
+                    "has_attachments": bool(email_data["attachments"])
                 },
                 "content": {
-                    "body_preview": email_content["body"][:1000] + "..." if len(email_content["body"]) > 1000 else email_content["body"]
+                    "body_preview": email_data["body"][:1000] + "..." if len(email_data["body"]) > 1000 else email_data["body"],
+                    "attachments": email_data["attachments"]
                 },
-                "analysis": analysis,
-                "suggested_actions": []
+                "analysis": content_analysis,
+                "entities": entities,
+                "actions": actions
             }
             
-            # Determine actions based on analysis
-            if analysis["sentiment"]["type"] == "negative" and analysis["urgency"]["level"] == "high":
-                result["suggested_actions"].append({
-                    "type": "escalate",
-                    "priority": "high",
-                    "reason": "Negative sentiment with high urgency"
-                })
-                
-            if analysis["tone"]["primary"] == "angry" and analysis["tone"]["politeness_score"] < 0.3:
-                result["suggested_actions"].append({
-                    "type": "flag_for_review",
-                    "priority": "high",
-                    "reason": "Angry tone detected"
-                })
-                
-            if analysis["urgency"]["time_sensitive"]:
-                result["suggested_actions"].append({
-                    "type": "set_deadline",
-                    "priority": "high",
-                    "deadline": analysis["urgency"]["deadline_text"],
-                    "reason": "Time-sensitive request"
-                })
-                
             # Add memory trace
             result["memory_trace"] = {
                 "processing_steps": [
-                    {"step": "content_extraction", "status": "success"},
-                    {"step": "sentiment_analysis", "status": "success", "score": analysis["sentiment"]["score"]},
-                    {"step": "urgency_detection", "status": "success", "level": analysis["urgency"]["level"]},
-                    {"step": "tone_analysis", "status": "success", "tone": analysis["tone"]["primary"]}
-                ],
-                "decision_factors": {
-                    "escalation_reason": "negative_sentiment" if analysis["sentiment"]["type"] == "negative" else None,
-                    "urgency_reason": analysis["urgency"]["level"] if analysis["urgency"]["level"] == "high" else None,
-                    "tone_reason": analysis["tone"]["primary"] if analysis["tone"]["primary"] == "angry" else None
-                }
+                    {"step": "email_parsing", "status": "success"},
+                    {"step": "content_analysis", "status": "success"},
+                    {"step": "entity_extraction", "status": "success", "entities_found": sum(len(v) for v in entities.values())},
+                    {"step": "action_generation", "status": "success", "actions_generated": len(actions)}
+                ]
             }
             
             logger.info(f"Email processing complete for {file_path.name}")
@@ -169,4 +70,278 @@ class EmailAgent:
             
         except Exception as e:
             logger.error(f"Email processing error: {str(e)}")
-            raise 
+            raise
+            
+    def _parse_email(self, file_path: Path) -> Dict[str, Any]:
+        """Parse email file and extract components."""
+        try:
+            with open(file_path, 'r') as f:
+                msg = message_from_file(f, policy=policy.default)
+                
+            # Extract basic headers
+            email_data = {
+                "subject": msg.get("subject", ""),
+                "from": msg.get("from", ""),
+                "to": msg.get("to", ""),
+                "date": msg.get("date", ""),
+                "body": "",
+                "attachments": []
+            }
+            
+            # Extract body
+            if msg.is_multipart():
+                for part in msg.walk():
+                    if part.get_content_type() == "text/plain":
+                        email_data["body"] += part.get_payload(decode=True).decode()
+                    elif part.get_content_type() != "multipart/alternative":
+                        email_data["attachments"].append({
+                            "filename": part.get_filename(),
+                            "type": part.get_content_type()
+                        })
+            else:
+                email_data["body"] = msg.get_payload(decode=True).decode()
+                
+            return email_data
+            
+        except Exception as e:
+            logger.error(f"Email parsing error: {str(e)}")
+            raise
+            
+    async def _analyze_content(self, email_data: Dict[str, Any]) -> Dict[str, Any]:
+        """Analyze email content using Gemini."""
+        prompt = f"""Analyze this email content and provide a detailed analysis.
+        Focus on:
+        - Email intent and urgency
+        - Sentiment analysis
+        - Required actions
+        - Risk assessment
+        - Priority level
+
+        You MUST respond with ONLY a JSON object in this exact format:
+        {{
+            "intent": {{
+                "primary_type": "request|complaint|inquiry|notification|other",
+                "urgency": "high|medium|low",
+                "confidence": <float between 0.0-1.0>
+            }},
+            "sentiment": {{
+                "type": "positive|negative|neutral",
+                "score": <float between -1.0 and 1.0>
+            }},
+            "key_points": ["point1", "point2"],
+            "risk_assessment": {{
+                "level": "high|medium|low",
+                "factors": ["factor1", "factor2"]
+            }},
+            "suggested_actions": [
+                {{
+                    "type": "action type",
+                    "priority": "high|medium|low",
+                    "description": "action description",
+                    "reason": "reason for action"
+                }}
+            ]
+        }}
+
+        Subject: {email_data['subject']}
+        From: {email_data['from']}
+        To: {email_data['to']}
+        Body:
+        ---
+        {email_data['body'][:3000]}
+        ---"""
+
+        try:
+            response = await self.model.generate_content(
+                prompt,
+                generation_config={
+                    'temperature': 0.3,
+                    'top_p': 0.8,
+                    'top_k': 40
+                }
+            )
+            
+            result = json.loads(response.text.strip())
+            return self._validate_analysis_result(result)
+            
+        except Exception as e:
+            logger.error(f"Content analysis failed: {str(e)}")
+            return self._generate_fallback_analysis()
+            
+    def _validate_analysis_result(self, result: Dict[str, Any]) -> Dict[str, Any]:
+        """Validate and clean analysis result."""
+        # Validate intent
+        if not isinstance(result.get("intent"), dict):
+            result["intent"] = {
+                "primary_type": "other",
+                "urgency": "medium",
+                "confidence": 0.5
+            }
+        
+        # Validate sentiment
+        if not isinstance(result.get("sentiment"), dict):
+            result["sentiment"] = {
+                "type": "neutral",
+                "score": 0.0
+            }
+        
+        # Validate key points
+        if not isinstance(result.get("key_points"), list):
+            result["key_points"] = []
+        
+        # Validate risk assessment
+        if not isinstance(result.get("risk_assessment"), dict):
+            result["risk_assessment"] = {
+                "level": "medium",
+                "factors": []
+            }
+        
+        # Validate suggested actions
+        if not isinstance(result.get("suggested_actions"), list):
+            result["suggested_actions"] = []
+        
+        return result
+            
+    def _extract_entities(self, content: str) -> Dict[str, List[str]]:
+        """Extract entities from email content."""
+        entities = {
+            "email_addresses": self._extract_emails(content),
+            "phone_numbers": self._extract_phone_numbers(content),
+            "dates": self._extract_dates(content),
+            "monetary_values": self._extract_monetary_values(content),
+            "urls": self._extract_urls(content)
+        }
+        return entities
+        
+    def _extract_emails(self, content: str) -> List[str]:
+        """Extract email addresses using regex."""
+        pattern = r'[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}'
+        return list(set(re.findall(pattern, content)))
+        
+    def _extract_phone_numbers(self, content: str) -> List[str]:
+        """Extract phone numbers using regex."""
+        pattern = r'\+?\d{1,3}[-.\s]?\(?\d{3}\)?[-.\s]?\d{3}[-.\s]?\d{4}'
+        return list(set(re.findall(pattern, content)))
+        
+    def _extract_dates(self, content: str) -> List[str]:
+        """Extract dates using regex."""
+        pattern = r'\d{1,2}[-/]\d{1,2}[-/]\d{2,4}|\d{4}-\d{2}-\d{2}|(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]* \d{1,2},? \d{4}'
+        return list(set(re.findall(pattern, content, re.IGNORECASE)))
+        
+    def _extract_monetary_values(self, content: str) -> List[str]:
+        """Extract monetary values using regex."""
+        pattern = r'\$\s*\d+(?:,\d{3})*(?:\.\d{2})?|\d+(?:,\d{3})*(?:\.\d{2})?\s*(?:USD|EUR|GBP)'
+        return list(set(re.findall(pattern, content)))
+        
+    def _extract_urls(self, content: str) -> List[str]:
+        """Extract URLs using regex."""
+        pattern = r'https?://(?:[-\w.]|(?:%[\da-fA-F]{2}))+'
+        return list(set(re.findall(pattern, content)))
+        
+    def _generate_actions(self, content_analysis: Dict[str, Any], email_data: Dict[str, Any], entities: Dict[str, List[str]]) -> List[Dict[str, Any]]:
+        """Generate actions based on email analysis."""
+        actions = []
+        
+        # Add actions from content analysis
+        if "suggested_actions" in content_analysis:
+            actions.extend(content_analysis["suggested_actions"])
+        
+        # Add intent-based actions
+        intent = content_analysis.get("intent", {})
+        if intent.get("primary_type") == "complaint":
+            actions.append({
+                "type": "customer_support",
+                "priority": "high",
+                "description": "Escalate to customer support",
+                "reason": "Email identified as customer complaint"
+            })
+        elif intent.get("primary_type") == "request":
+            actions.append({
+                "type": "request_processing",
+                "priority": "high" if intent.get("urgency") == "high" else "medium",
+                "description": "Process customer request",
+                "reason": "Email contains customer request"
+            })
+        
+        # Add urgency-based actions
+        if intent.get("urgency") == "high":
+            actions.append({
+                "type": "urgent_response",
+                "priority": "high",
+                "description": "Send immediate response",
+                "reason": "High urgency email requires quick response"
+            })
+        
+        # Add sentiment-based actions
+        sentiment = content_analysis.get("sentiment", {})
+        if sentiment.get("type") == "negative" and sentiment.get("score", 0) < -0.5:
+            actions.append({
+                "type": "sentiment_alert",
+                "priority": "high",
+                "description": "Address negative sentiment",
+                "reason": "Strong negative sentiment detected"
+            })
+        
+        # Add risk-based actions
+        risk = content_analysis.get("risk_assessment", {})
+        if risk.get("level") == "high":
+            actions.append({
+                "type": "risk_assessment",
+                "priority": "high",
+                "description": "Evaluate and mitigate risks",
+                "reason": f"High risk factors: {', '.join(risk.get('factors', []))}"
+            })
+        
+        # Add attachment-based actions
+        if email_data.get("attachments"):
+            actions.append({
+                "type": "attachment_review",
+                "priority": "medium",
+                "description": "Review email attachments",
+                "reason": f"Email contains {len(email_data['attachments'])} attachment(s)"
+            })
+        
+        # Add entity-based actions
+        if entities.get("monetary_values"):
+            actions.append({
+                "type": "financial_review",
+                "priority": "high",
+                "description": "Review financial implications",
+                "reason": "Email contains monetary values"
+            })
+        
+        # Deduplicate actions
+        seen = set()
+        unique_actions = []
+        for action in actions:
+            action_key = f"{action['type']}_{action['priority']}"
+            if action_key not in seen:
+                seen.add(action_key)
+                unique_actions.append(action)
+        
+        return unique_actions
+        
+    def _generate_fallback_analysis(self) -> Dict[str, Any]:
+        """Generate fallback analysis when main analysis fails."""
+        return {
+            "intent": {
+                "primary_type": "other",
+                "urgency": "medium",
+                "confidence": 0.5
+            },
+            "sentiment": {
+                "type": "neutral",
+                "score": 0.0
+            },
+            "key_points": ["Manual review recommended"],
+            "risk_assessment": {
+                "level": "medium",
+                "factors": ["Automated analysis failed"]
+            },
+            "suggested_actions": [{
+                "type": "manual_review",
+                "priority": "high",
+                "description": "Review email manually",
+                "reason": "Automated analysis failed"
+            }]
+        } 
