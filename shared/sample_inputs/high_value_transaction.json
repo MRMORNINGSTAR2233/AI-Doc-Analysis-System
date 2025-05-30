@@ -1,0 +1,25 @@
+{
+  "event_type": "transaction.created",
+  "timestamp": "2024-03-14T14:30:00Z",
+  "data": {
+    "transaction_id": "TRX-123456",
+    "amount": 15000.00,
+    "currency": "USD",
+    "customer": {
+      "id": "CUST-789",
+      "name": "John Smith",
+      "email": "john.smith@example.com"
+    },
+    "payment_method": {
+      "type": "credit_card",
+      "last4": "4242",
+      "brand": "visa"
+    },
+    "ip_address": "192.168.1.1",
+    "risk_score": 0.85,
+    "metadata": {
+      "order_id": "ORD-98765",
+      "product_category": "electronics"
+    }
+  }
+} 
