@@ -29,7 +29,9 @@ class EmailAgent:
             "subject": msg.get("subject", ""),
             "from": msg.get("from", ""),
             "to": msg.get("to", ""),
-            "date": msg.get("date", "")
+            "date": msg.get("date", ""),
+            "cc": msg.get("cc", ""),
+            "reply-to": msg.get("reply-to", "")
         }
         
         # Get body content
@@ -52,16 +54,32 @@ class EmailAgent:
             "body": body
         }
         
-    async def _analyze_sentiment(self, text: str) -> Dict[str, Any]:
-        """Analyze email sentiment and urgency."""
-        prompt = f"""Analyze the following email text for sentiment and urgency.
-        Respond in JSON format with the following structure:
+    async def _analyze_content(self, text: str) -> Dict[str, Any]:
+        """Analyze email content for sentiment, urgency, and tone."""
+        prompt = f"""Analyze the following email for sentiment, urgency, and tone.
+        Respond in JSON format with:
         {{
-            "sentiment": "positive|negative|neutral",
-            "sentiment_score": 0.0-1.0,
-            "urgency": "high|medium|low",
-            "key_topics": ["topic1", "topic2"],
-            "requires_immediate_action": true|false
+            "sentiment": {{
+                "type": "positive|negative|neutral",
+                "score": 0.0-1.0,
+                "key_phrases": ["phrase1", "phrase2"]
+            }},
+            "urgency": {{
+                "level": "high|medium|low",
+                "time_sensitive": true|false,
+                "deadline_mentioned": true|false,
+                "deadline_text": "extracted deadline if mentioned"
+            }},
+            "tone": {{
+                "primary": "angry|polite|neutral|demanding|appreciative",
+                "formality": "formal|informal",
+                "politeness_score": 0.0-1.0
+            }},
+            "issue": {{
+                "category": "technical|billing|service|support|other",
+                "summary": "brief description of the main issue/request",
+                "action_items": ["action1", "action2"]
+            }}
         }}
         
         Email text:
@@ -72,13 +90,12 @@ class EmailAgent:
             response = await self.model.generate_content(prompt)
             return json.loads(response.text)
         except Exception as e:
-            logger.error(f"Sentiment analysis failed: {str(e)}")
+            logger.error(f"Content analysis failed: {str(e)}")
             return {
-                "sentiment": "unknown",
-                "sentiment_score": 0.0,
-                "urgency": "unknown",
-                "key_topics": [],
-                "requires_immediate_action": False
+                "sentiment": {"type": "unknown", "score": 0.0, "key_phrases": []},
+                "urgency": {"level": "unknown", "time_sensitive": False, "deadline_mentioned": False},
+                "tone": {"primary": "unknown", "formality": "unknown", "politeness_score": 0.0},
+                "issue": {"category": "unknown", "summary": "", "action_items": []}
             }
             
     async def process(self, file_path: Path) -> Dict[str, Any]:
@@ -87,36 +104,66 @@ class EmailAgent:
             # Extract email content
             email_content = self._extract_email_content(file_path)
             
-            # Analyze sentiment
-            sentiment_analysis = await self._analyze_sentiment(
+            # Analyze content
+            analysis = await self._analyze_content(
                 f"Subject: {email_content['headers']['subject']}\n\n{email_content['body']}"
             )
             
             # Prepare result
             result = {
-                "metadata": email_content["headers"],
-                "content": {
-                    "body": email_content["body"][:1000] + "..." if len(email_content["body"]) > 1000 else email_content["body"]
+                "metadata": {
+                    "sender": email_content["headers"]["from"],
+                    "recipient": email_content["headers"]["to"],
+                    "cc": email_content["headers"]["cc"],
+                    "reply_to": email_content["headers"]["reply-to"],
+                    "date": email_content["headers"]["date"],
+                    "subject": email_content["headers"]["subject"]
                 },
-                "analysis": sentiment_analysis,
+                "content": {
+                    "body_preview": email_content["body"][:1000] + "..." if len(email_content["body"]) > 1000 else email_content["body"]
+                },
+                "analysis": analysis,
                 "suggested_actions": []
             }
             
-            # Determine suggested actions based on analysis
-            if sentiment_analysis["sentiment"] == "negative" and sentiment_analysis["urgency"] == "high":
+            # Determine actions based on analysis
+            if analysis["sentiment"]["type"] == "negative" and analysis["urgency"]["level"] == "high":
                 result["suggested_actions"].append({
                     "type": "escalate",
                     "priority": "high",
                     "reason": "Negative sentiment with high urgency"
                 })
                 
-            if sentiment_analysis["requires_immediate_action"]:
+            if analysis["tone"]["primary"] == "angry" and analysis["tone"]["politeness_score"] < 0.3:
                 result["suggested_actions"].append({
                     "type": "flag_for_review",
                     "priority": "high",
-                    "reason": "Requires immediate attention"
+                    "reason": "Angry tone detected"
                 })
                 
+            if analysis["urgency"]["time_sensitive"]:
+                result["suggested_actions"].append({
+                    "type": "set_deadline",
+                    "priority": "high",
+                    "deadline": analysis["urgency"]["deadline_text"],
+                    "reason": "Time-sensitive request"
+                })
+                
+            # Add memory trace
+            result["memory_trace"] = {
+                "processing_steps": [
+                    {"step": "content_extraction", "status": "success"},
+                    {"step": "sentiment_analysis", "status": "success", "score": analysis["sentiment"]["score"]},
+                    {"step": "urgency_detection", "status": "success", "level": analysis["urgency"]["level"]},
+                    {"step": "tone_analysis", "status": "success", "tone": analysis["tone"]["primary"]}
+                ],
+                "decision_factors": {
+                    "escalation_reason": "negative_sentiment" if analysis["sentiment"]["type"] == "negative" else None,
+                    "urgency_reason": analysis["urgency"]["level"] if analysis["urgency"]["level"] == "high" else None,
+                    "tone_reason": analysis["tone"]["primary"] if analysis["tone"]["primary"] == "angry" else None
+                }
+            }
+            
             logger.info(f"Email processing complete for {file_path.name}")
             return result
             

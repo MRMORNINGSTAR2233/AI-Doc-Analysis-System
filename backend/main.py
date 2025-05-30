@@ -243,6 +243,29 @@ async def risk_alert(data: Dict[str, Any]):
             detail="Failed to create risk alert"
         )
 
+@app.post("/validation_error")
+async def validation_error(data: Dict[str, Any]):
+    try:
+        # Log the validation error
+        logger.info(f"Validation Error: {json.dumps(data)}")
+        
+        return JSONResponse(
+            status_code=200,
+            content={
+                "status": "error_logged",
+                "timestamp": datetime.now().isoformat(),
+                "error_id": f"VAL-{datetime.now().strftime('%Y%m%d-%H%M%S')}",
+                "validation_errors": data.get("errors", []),
+                "source": data.get("source", "unknown")
+            }
+        )
+    except Exception as e:
+        logger.error(f"Validation error logging failed: {str(e)}")
+        raise HTTPException(
+            status_code=500,
+            detail="Failed to log validation error"
+        )
+
 # Health check endpoint
 @app.get("/health")
 async def health_check():

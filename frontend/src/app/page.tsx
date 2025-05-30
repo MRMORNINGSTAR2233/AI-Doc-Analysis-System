@@ -210,7 +210,24 @@ export default function Home() {
                         </div>
                         <Separator.Root className="my-4 h-px bg-gray-200" />
                         <div className="text-sm text-gray-600">
-                          <p>Intent: {result.classification.intent}</p>
+                          <p>Intent Type: {result.classification.intent.type}</p>
+                          <p>Confidence: {(result.classification.intent.confidence * 100).toFixed(1)}%</p>
+                          {result.classification.intent.keywords?.length > 0 && (
+                            <div className="mt-2">
+                              <p className="font-medium">Keywords:</p>
+                              <ul className="list-disc list-inside">
+                                {result.classification.intent.keywords.map((keyword: string, index: number) => (
+                                  <li key={index}>{keyword}</li>
+                                ))}
+                              </ul>
+                            </div>
+                          )}
+                          {result.classification.intent.reasoning && (
+                            <p className="mt-2">
+                              <span className="font-medium">Reasoning: </span>
+                              {result.classification.intent.reasoning}
+                            </p>
+                          )}
                           <p className="mt-2">Memory ID: {result.memory_id}</p>
                         </div>
                       </div>
