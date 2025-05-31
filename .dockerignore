@@ -9,29 +9,32 @@
 **/.pytest_cache
 **/.coverage
 
-# Environment
-**/.env
-**/.env.*
-**/venv
-**/.venv
-
-# Development
-**/.vscode
-**/.idea
-**/*.log
-
 # Build outputs
 **/dist
 **/build
 **/.next
-**/*.egg-info
+**/.vercel
+
+# Environment files
+.env
+.env.local
+.env.*
+
+# Development files
+**/.vscode
+**/.idea
+**/*.log
+**/npm-debug.log*
 
 # Data directories
-**/memory
-**/shared/uploads/*
-**/shared/output_logs/*
-!**/shared/sample_inputs/
+data/
+uploads/
 
-# Docker
-**/Dockerfile
-docker-compose.yml 
+# Documentation
+**/README.md
+**/docs/
+
+# Docker files
+Dockerfile
+docker-compose.yml
+.dockerignore 

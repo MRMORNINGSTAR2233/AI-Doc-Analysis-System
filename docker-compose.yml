@@ -1,41 +1,18 @@
 version: '3.8'
 
 services:
-  backend:
+  mailer:
     build:
-      context: ./backend
+      context: .
       dockerfile: Dockerfile
     ports:
-      - "8000:8000"
+      - "3000:3000"  # Frontend port
+      - "8000:8000"  # Backend port
     environment:
-      - GOOGLE_API_KEY=${GOOGLE_API_KEY}
-      - UPLOAD_DIR=/app/shared/uploads
-      - PYTHONUNBUFFERED=1
-    volumes:
-      - ./backend:/app
-      - shared_data:/app/shared
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8000/"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 10s
-    restart: unless-stopped
-
-  frontend:
-    build:
-      context: ./frontend
-      dockerfile: Dockerfile
-    ports:
-      - "3000:3000"
-    environment:
+      - NODE_ENV=production
       - NEXT_PUBLIC_API_URL=http://localhost:8000
-      - NEXT_PUBLIC_WS_URL=ws://localhost:8000
     volumes:
-      - ./frontend:/app
-      - /app/node_modules
-    depends_on:
-      - backend
+      - ./data:/app/data  # For persistent data storage
     restart: unless-stopped
 
 volumes:

@@ -188,11 +188,11 @@ export default function Home() {
   }
   
   return (
-    <div className="min-h-screen bg-gray-50">
-      <nav className="bg-white shadow-sm">
+    <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
+      <nav className="bg-white dark:bg-gray-800 shadow-sm">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between h-16 items-center">
-            <h1 className="text-2xl font-bold text-gray-900">AI Document Analysis System</h1>
+            <h1 className="text-2xl font-bold text-gray-900 dark:text-white">AI Document Analysis System</h1>
           </div>
         </div>
       </nav>
@@ -201,12 +201,12 @@ export default function Home() {
         <div className="px-4 py-6 sm:px-0">
           <div className="grid gap-8 md:grid-cols-2">
             {/* Upload Section */}
-            <div className="bg-white overflow-hidden shadow rounded-lg">
+            <div className="bg-white dark:bg-gray-800 overflow-hidden shadow rounded-lg">
               <div className="px-4 py-5 sm:p-6">
-                <h2 className="text-lg font-medium text-gray-900 mb-4">Upload Document</h2>
+                <h2 className="text-lg font-medium text-gray-900 dark:text-white mb-4">Upload Document</h2>
                 
                 <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
-                  <div className="border-2 border-dashed border-gray-300 rounded-lg p-6 transition-colors hover:border-blue-400">
+                  <div className="border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-lg p-6 transition-colors hover:border-blue-400">
                     <input
                       type="file"
                       onChange={(e) => {
@@ -222,11 +222,11 @@ export default function Home() {
                       htmlFor="file-upload"
                       className="cursor-pointer flex flex-col items-center"
                     >
-                      <Upload className="h-12 w-12 text-gray-400 mb-3" />
-                      <span className="text-sm font-medium text-gray-700">
+                      <Upload className="h-12 w-12 text-gray-400 dark:text-gray-500 mb-3" />
+                      <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
                         Drop your file here or click to upload
                       </span>
-                      <span className="mt-1 text-xs text-gray-500">
+                      <span className="mt-1 text-xs text-gray-500 dark:text-gray-400">
                         Supports PDF, JSON, Email and Text files
                       </span>
                     </label>
@@ -291,12 +291,12 @@ export default function Home() {
                 </form>
                 
                 {error && (
-                  <div className="mt-4 p-4 bg-red-50 rounded-md">
+                  <div className="mt-4 p-4 bg-red-50 dark:bg-red-900/20 rounded-md">
                     <div className="flex">
                       <AlertTriangle className="h-5 w-5 text-red-400" />
                       <div className="ml-3">
-                        <h3 className="text-sm font-medium text-red-800">Error</h3>
-                        <p className="mt-1 text-sm text-red-700">{error}</p>
+                        <h3 className="text-sm font-medium text-red-800 dark:text-red-200">Error</h3>
+                        <p className="mt-1 text-sm text-red-700 dark:text-red-300">{error}</p>
                       </div>
                     </div>
                   </div>
@@ -305,69 +305,69 @@ export default function Home() {
             </div>
             
             {/* Results Section */}
-            <div className="bg-white overflow-hidden shadow rounded-lg">
+            <div className="bg-white dark:bg-gray-800 overflow-hidden shadow rounded-lg">
               <div className="px-4 py-5 sm:p-6">
-                <h2 className="text-lg font-medium text-gray-900 mb-4">Results</h2>
+                <h2 className="text-lg font-medium text-gray-900 dark:text-white mb-4">Results</h2>
                 
                 {result ? (
                   <Tabs.Root defaultValue="classification" className="space-y-6">
                     <Tabs.List className="flex space-x-4 border-b border-gray-200">
                       <Tabs.Trigger
                         value="classification"
-                        className="px-3 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent data-[state=active]:border-blue-500 data-[state=active]:text-blue-600"
+                        className="px-3 py-2 text-sm font-medium text-gray-700 hover:text-gray-900 border-b-2 border-transparent data-[state=active]:border-blue-500 data-[state=active]:text-blue-700"
                       >
                         Classification
                       </Tabs.Trigger>
                       <Tabs.Trigger
                         value="analysis"
-                        className="px-3 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent data-[state=active]:border-blue-500 data-[state=active]:text-blue-600"
+                        className="px-3 py-2 text-sm font-medium text-gray-700 hover:text-gray-900 border-b-2 border-transparent data-[state=active]:border-blue-500 data-[state=active]:text-blue-700"
                       >
                         Analysis
                       </Tabs.Trigger>
                       <Tabs.Trigger
                         value="actions"
-                        className="px-3 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent data-[state=active]:border-blue-500 data-[state=active]:text-blue-600"
+                        className="px-3 py-2 text-sm font-medium text-gray-700 hover:text-gray-900 border-b-2 border-transparent data-[state=active]:border-blue-500 data-[state=active]:text-blue-700"
                       >
                         Actions
                       </Tabs.Trigger>
                       <Tabs.Trigger
                         value="details"
-                        className="px-3 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 border-b-2 border-transparent data-[state=active]:border-blue-500 data-[state=active]:text-blue-600"
+                        className="px-3 py-2 text-sm font-medium text-gray-700 hover:text-gray-900 border-b-2 border-transparent data-[state=active]:border-blue-500 data-[state=active]:text-blue-700"
                       >
                         Details
                       </Tabs.Trigger>
                     </Tabs.List>
                     
                     <Tabs.Content value="classification" className="space-y-4">
-                      <div className="rounded-md bg-gray-50 p-4">
+                      <div className="rounded-md bg-gray-50 dark:bg-gray-800 p-4">
                         {/* Format and Intent */}
                         <div className="flex items-center space-x-2">
                           {getFormatIcon(result.format || result.classification?.format || "unknown")}
-                          <span className="text-sm font-medium text-gray-900">
+                          <span className="text-sm font-medium text-gray-900 dark:text-white">
                             Format: {result.format || result.classification?.format || "Unknown"}
                           </span>
                         </div>
                         <Separator.Root className="my-4 h-px bg-gray-200" />
                         
                         {/* Intent Details */}
-                        <div className="text-sm text-gray-600 space-y-3">
+                        <div className="text-sm text-gray-800 dark:text-gray-200 space-y-3">
                           <div>
-                            <p className="font-medium text-gray-900">Intent Analysis</p>
+                            <p className="font-medium text-gray-900 dark:text-white">Intent Analysis</p>
                             <div className="mt-2 space-y-2">
                               <div className="flex items-center justify-between">
-                                <span>Type:</span>
+                                <span className="text-gray-800 dark:text-gray-200">Type:</span>
                                 <span className={`inline-flex items-center px-2 py-1 rounded-md text-xs font-medium ${
                                   (result.intent?.confidence || result.classification?.intent?.confidence || 0) >= 0.7 
-                                    ? 'bg-green-100 text-green-700'
+                                    ? 'bg-green-100 text-green-800'
                                     : (result.intent?.confidence || result.classification?.intent?.confidence || 0) >= 0.4
-                                    ? 'bg-yellow-100 text-yellow-700'
-                                    : 'bg-red-100 text-red-700'
+                                    ? 'bg-yellow-100 text-yellow-800'
+                                    : 'bg-red-100 text-red-800'
                                 }`}>
                                   {result.intent?.type || result.classification?.intent?.type || "Unknown"}
                                 </span>
                               </div>
                               <div className="flex items-center justify-between">
-                                <span>Confidence:</span>
+                                <span className="text-gray-800 dark:text-gray-200">Confidence:</span>
                                 <div className="flex items-center space-x-2">
                                   <div className="w-24 h-2 bg-gray-200 rounded-full overflow-hidden">
                                     <div 
@@ -381,32 +381,32 @@ export default function Home() {
                                       style={{ width: `${(result.intent?.confidence || result.classification?.intent?.confidence || 0) * 100}%` }}
                                     />
                                   </div>
-                                  <span>{((result.intent?.confidence || result.classification?.intent?.confidence || 0) * 100).toFixed(1)}%</span>
+                                  <span className="text-gray-800 dark:text-gray-200">{((result.intent?.confidence || result.classification?.intent?.confidence || 0) * 100).toFixed(1)}%</span>
                                 </div>
                               </div>
                             </div>
                             {(result.intent?.confidence_explanation || result.classification?.intent?.confidence_explanation) && (
-                              <div className="mt-2 text-xs text-gray-500">
+                              <div className="mt-2 text-xs text-gray-700 dark:text-gray-300">
                                 {result.intent?.confidence_explanation || result.classification?.intent?.confidence_explanation}
                               </div>
                             )}
-                            <div className="mt-3 p-3 bg-gray-50 rounded-md">
-                              <p className="text-sm">{result.intent?.reasoning || result.classification?.intent?.reasoning || "No reasoning provided"}</p>
+                            <div className="mt-3 p-3 bg-gray-50 dark:bg-gray-700 rounded-md">
+                              <p className="text-sm text-gray-800 dark:text-gray-200">{result.intent?.reasoning || result.classification?.intent?.reasoning || "No reasoning provided"}</p>
                             </div>
                           </div>
 
                           {/* Keywords */}
                           {(result.intent?.keywords?.length > 0 || result.classification?.intent?.keywords?.length > 0) && (
                             <div className="mt-4">
-                              <p className="font-medium text-gray-900">Detected Keywords</p>
+                              <p className="font-medium text-gray-900 dark:text-white">Detected Keywords</p>
                               <div className="flex flex-wrap gap-2 mt-2">
                                 {(result.intent?.keywords || result.classification?.intent?.keywords || []).map((keyword: string, index: number) => (
                                   <span 
                                     key={index} 
                                     className={`inline-flex items-center px-2 py-1 rounded-md text-xs font-medium ${
                                       (result.intent?.confidence || result.classification?.intent?.confidence || 0) >= 0.7
-                                        ? 'bg-green-100 text-green-700'
-                                        : 'bg-blue-100 text-blue-700'
+                                        ? 'bg-green-100 text-green-800'
+                                        : 'bg-blue-100 text-blue-800'
                                     }`}
                                   >
                                     {keyword}
@@ -418,21 +418,21 @@ export default function Home() {
 
                           {/* Routing Information */}
                           <div>
-                            <p className="font-medium text-gray-900">Routing Details</p>
+                            <p className="font-medium text-gray-900 dark:text-white">Routing Details</p>
                             <div className="mt-2 grid grid-cols-2 gap-4">
                               <div>
-                                <p className="text-xs font-medium text-gray-500">Department</p>
-                                <p className="mt-1">{result.routing?.suggested_department || result.classification?.routing?.suggested_department || "General Processing"}</p>
+                                <p className="text-xs font-medium text-gray-700 dark:text-gray-300">Department</p>
+                                <p className="mt-1 text-gray-800 dark:text-gray-200">{result.routing?.suggested_department || result.classification?.routing?.suggested_department || "General Processing"}</p>
                               </div>
                               <div>
-                                <p className="text-xs font-medium text-gray-500">Priority</p>
+                                <p className="text-xs font-medium text-gray-700 dark:text-gray-300">Priority</p>
                                 <span className={`inline-flex items-center px-2 py-1 rounded-md text-xs font-medium ${
                                   (result.routing?.priority || result.classification?.routing?.priority || "normal") === 'high' || 
                                   (result.routing?.priority || result.classification?.routing?.priority || "normal") === 'critical'
-                                    ? 'bg-red-100 text-red-700'
+                                    ? 'bg-red-100 text-red-800'
                                     : (result.routing?.priority || result.classification?.routing?.priority || "normal") === 'medium'
-                                    ? 'bg-yellow-100 text-yellow-700'
-                                    : 'bg-blue-100 text-blue-700'
+                                    ? 'bg-yellow-100 text-yellow-800'
+                                    : 'bg-blue-100 text-blue-800'
                                 }`}>
                                   {((result.routing?.priority || result.classification?.routing?.priority || "normal")).toUpperCase()}
                                 </span>
@@ -442,8 +442,8 @@ export default function Home() {
 
                           <div className="mt-4 pt-4 border-t border-gray-200">
                             <div className="flex justify-between">
-                              <p className="text-xs text-gray-500">Task ID: {result.task_id}</p>
-                              <p className="text-xs text-gray-500">
+                              <p className="text-xs text-gray-700 dark:text-gray-300">Task ID: {result.task_id}</p>
+                              <p className="text-xs text-gray-700 dark:text-gray-300">
                                 {new Date(result.timestamp).toLocaleString()}
                               </p>
                             </div>
@@ -458,23 +458,23 @@ export default function Home() {
                         <div className="space-y-6">
                           {/* Content Analysis */}
                           {(result.analysis?.content_analysis || result.classification?.analysis?.content_analysis || result.specialized_analysis?.content_analysis) && (
-                            <div className="bg-gray-50 rounded-md p-4">
-                              <h3 className="font-medium text-gray-900 mb-3">Content Analysis</h3>
+                            <div className="bg-gray-50 dark:bg-gray-800 rounded-md p-4">
+                              <h3 className="font-medium text-gray-900 dark:text-white mb-3">Content Analysis</h3>
                               <div className="grid grid-cols-2 gap-4 text-sm">
                                 <div>
-                                  <p className="text-xs font-medium text-gray-500">Document Length</p>
-                                  <p>{(result.analysis?.content_analysis?.length || result.classification?.analysis?.content_analysis?.length || result.specialized_analysis?.content_analysis?.length || 0)} characters</p>
+                                  <p className="text-xs font-medium text-gray-700 dark:text-gray-300">Document Length</p>
+                                  <p className="text-gray-800 dark:text-gray-200">{(result.analysis?.content_analysis?.length || result.classification?.analysis?.content_analysis?.length || result.specialized_analysis?.content_analysis?.length || 0)} characters</p>
                                 </div>
                                 <div>
-                                  <p className="text-xs font-medium text-gray-500">Readability</p>
-                                  <p className="capitalize">{(result.analysis?.content_analysis?.readability?.complexity || result.classification?.analysis?.content_analysis?.readability?.complexity || result.specialized_analysis?.content_analysis?.readability?.complexity || "Unknown")}</p>
+                                  <p className="text-xs font-medium text-gray-700 dark:text-gray-300">Readability</p>
+                                  <p className="capitalize text-gray-800 dark:text-gray-200">{(result.analysis?.content_analysis?.readability?.complexity || result.classification?.analysis?.content_analysis?.readability?.complexity || result.specialized_analysis?.content_analysis?.readability?.complexity || "Unknown")}</p>
                                 </div>
                               </div>
                               
                               {/* Entities Section */}
                               {(result.analysis?.content_analysis?.entities || result.classification?.analysis?.content_analysis?.entities || result.specialized_analysis?.content_analysis?.entities) && (
                                 <div className="mt-4 pt-4 border-t border-gray-200">
-                                  <h4 className="font-medium text-sm text-gray-900 mb-2">Detected Entities</h4>
+                                  <h4 className="font-medium text-sm text-gray-900 dark:text-white mb-2">Detected Entities</h4>
                                   <div className="grid grid-cols-2 gap-4">
                                     {/* Use the first available entities data */}
                                     {(() => {
@@ -486,30 +486,30 @@ export default function Home() {
                                         <>
                                           {entities.emails?.length > 0 && (
                                             <div>
-                                              <p className="text-xs font-medium text-gray-500">Emails</p>
+                                              <p className="text-xs font-medium text-gray-700 dark:text-gray-300">Emails</p>
                                               <ul className="mt-1 list-disc list-inside">
                                                 {entities.emails.map((email: string, index: number) => (
-                                                  <li key={index} className="text-sm truncate">{email}</li>
+                                                  <li key={index} className="text-sm text-gray-800 dark:text-gray-200 truncate">{email}</li>
                                                 ))}
                                               </ul>
                                             </div>
                                           )}
                                           {entities.dates?.length > 0 && (
                                             <div>
-                                              <p className="text-xs font-medium text-gray-500">Dates</p>
+                                              <p className="text-xs font-medium text-gray-700 dark:text-gray-300">Dates</p>
                                               <ul className="mt-1 list-disc list-inside">
                                                 {entities.dates.map((date: string, index: number) => (
-                                                  <li key={index} className="text-sm">{date}</li>
+                                                  <li key={index} className="text-sm text-gray-800 dark:text-gray-200">{date}</li>
                                                 ))}
                                               </ul>
                                             </div>
                                           )}
                                           {entities.amounts?.length > 0 && (
                                             <div>
-                                              <p className="text-xs font-medium text-gray-500">Amounts</p>
+                                              <p className="text-xs font-medium text-gray-700 dark:text-gray-300">Amounts</p>
                                               <ul className="mt-1 list-disc list-inside">
                                                 {entities.amounts.map((amount: string, index: number) => (
-                                                  <li key={index} className="text-sm">{amount}</li>
+                                                  <li key={index} className="text-sm text-gray-800 dark:text-gray-200">{amount}</li>
                                                 ))}
                                               </ul>
                                             </div>
@@ -530,18 +530,18 @@ export default function Home() {
                                                    result.specialized_analysis?.recommendations || [];
                             
                             return recommendations.length > 0 ? (
-                              <div className="bg-gray-50 rounded-md p-4">
-                                <h3 className="font-medium text-gray-900 mb-3">Recommendations</h3>
+                              <div className="bg-gray-50 dark:bg-gray-800 rounded-md p-4">
+                                <h3 className="font-medium text-gray-900 dark:text-white mb-3">Recommendations</h3>
                                 <div className="space-y-2">
                                   {recommendations.map((rec: any, index: number) => (
-                                    <div key={index} className="flex items-start space-x-2 p-2 rounded-md bg-white border border-gray-200">
+                                    <div key={index} className="flex items-start space-x-2 p-2 rounded-md bg-white dark:bg-gray-700 border border-gray-200 dark:border-gray-600">
                                       <div className={`mt-0.5 w-2 h-2 rounded-full ${
                                         rec.priority === 'high' || rec.priority === 'critical' ? 'bg-red-500' : 
                                         rec.priority === 'medium' ? 'bg-yellow-500' : 'bg-blue-500'
                                       }`} />
                                       <div>
-                                        <p className="text-sm font-medium">{rec.action}</p>
-                                        <p className="text-xs text-gray-500">{rec.reason}</p>
+                                        <p className="text-sm font-medium text-gray-800 dark:text-gray-200">{rec.action}</p>
+                                        <p className="text-xs text-gray-700 dark:text-gray-300">{rec.reason}</p>
                                       </div>
                                     </div>
                                   ))}
@@ -554,48 +554,48 @@ export default function Home() {
                     </Tabs.Content>
 
                     <Tabs.Content value="actions" className="space-y-4">
-                      <div className="bg-gray-50 rounded-md p-4">
-                        <h3 className="font-medium text-gray-900 mb-3">Actions</h3>
+                      <div className="bg-gray-50 dark:bg-gray-800 rounded-md p-4">
+                        <h3 className="font-medium text-gray-900 dark:text-white mb-3">Actions</h3>
                         
                         {result.actions && result.actions.length > 0 ? (
                           <div className="space-y-4">
-                            <p className="text-sm text-gray-600">{result.actions.length} actions determined</p>
+                            <p className="text-sm text-gray-800 dark:text-gray-200">{result.actions.length} actions determined</p>
                             
                             {/* List of actions */}
                             <div className="space-y-3">
                               {result.actions.map((action: any, index: number) => (
-                                <div key={index} className="bg-white p-3 rounded-md border border-gray-200">
+                                <div key={index} className="bg-white dark:bg-gray-700 p-3 rounded-md border border-gray-200 dark:border-gray-600">
                                   <div className="flex justify-between items-start">
                                     <div>
                                       <span className={`inline-flex items-center px-2 py-1 rounded-md text-xs font-medium ${
-                                        action.priority === 'critical' ? 'bg-red-100 text-red-700' :
-                                        action.priority === 'high' ? 'bg-orange-100 text-orange-700' :
-                                        action.priority === 'medium' ? 'bg-yellow-100 text-yellow-700' :
-                                        'bg-blue-100 text-blue-700'
+                                        action.priority === 'critical' ? 'bg-red-100 text-red-800' :
+                                        action.priority === 'high' ? 'bg-orange-100 text-orange-800' :
+                                        action.priority === 'medium' ? 'bg-yellow-100 text-yellow-800' :
+                                        'bg-blue-100 text-blue-800'
                                       }`}>
                                         {action.priority?.toUpperCase() || "NORMAL"}
                                       </span>
-                                      <h4 className="mt-2 font-medium text-gray-900">{action.type}</h4>
+                                      <h4 className="mt-2 font-medium text-gray-900 dark:text-white">{action.type}</h4>
                                     </div>
                                     
                                     {/* Execution status if available */}
                                     {action.result && (
                                       <span className={`text-xs px-2 py-1 rounded-md ${
-                                        action.result.status === 'success' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'
+                                        action.result.status === 'success' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
                                       }`}>
                                         {action.result.status}
                                       </span>
                                     )}
                                   </div>
                                   
-                                  <p className="mt-1 text-sm text-gray-600">{action.description || "No description"}</p>
-                                  <p className="mt-1 text-xs text-gray-500">{action.reason || "No reason provided"}</p>
+                                  <p className="mt-1 text-sm text-gray-800 dark:text-gray-200">{action.description || "No description"}</p>
+                                  <p className="mt-1 text-xs text-gray-700 dark:text-gray-300">{action.reason || "No reason provided"}</p>
                                   
                                   {/* Show execution result if available */}
                                   {action.result && action.result.response && (
-                                    <div className="mt-3 pt-3 border-t border-gray-100">
-                                      <p className="text-xs font-medium text-gray-500">Response:</p>
-                                      <pre className="mt-1 text-xs bg-gray-50 p-2 rounded overflow-auto max-h-20">
+                                    <div className="mt-3 pt-3 border-t border-gray-100 dark:border-gray-600">
+                                      <p className="text-xs font-medium text-gray-700 dark:text-gray-300">Response:</p>
+                                      <pre className="mt-1 text-xs bg-gray-50 dark:bg-gray-800 p-2 rounded overflow-auto max-h-20 text-gray-800 dark:text-gray-200">
                                         {JSON.stringify(action.result.response, null, 2)}
                                       </pre>
                                     </div>
@@ -606,7 +606,7 @@ export default function Home() {
                           </div>
                         ) : (
                           <div className="text-center py-6">
-                            <p className="text-sm text-gray-500">No actions determined for this document</p>
+                            <p className="text-sm text-gray-800 dark:text-gray-200">No actions determined for this document</p>
                           </div>
                         )}
                       </div>
@@ -616,11 +616,11 @@ export default function Home() {
                       <div className="space-y-4">
                         {/* Validation Results */}
                         {(result.validation || result.classification?.validation) && (
-                          <div className="bg-gray-50 rounded-md p-4">
-                            <h3 className="font-medium text-gray-900 mb-3">Validation</h3>
+                          <div className="bg-gray-50 dark:bg-gray-800 rounded-md p-4">
+                            <h3 className="font-medium text-gray-900 dark:text-white mb-3">Validation</h3>
                             <div className="flex items-center mb-3">
                               <div className={`w-3 h-3 rounded-full ${(result.validation?.is_valid || result.classification?.validation?.is_valid) ? 'bg-green-500' : 'bg-red-500'} mr-2`}></div>
-                              <span className="text-sm font-medium">
+                              <span className="text-sm font-medium text-gray-800 dark:text-gray-200">
                                 {(result.validation?.is_valid || result.classification?.validation?.is_valid) ? 'Valid document' : 'Invalid document - requires review'}
                               </span>
                             </div>
@@ -630,12 +630,12 @@ export default function Home() {
                               const warnings = result.validation?.warnings || result.classification?.validation?.warnings || [];
                               return warnings.length > 0 ? (
                                 <div className="mt-2">
-                                  <p className="text-xs font-medium text-gray-500">Warnings</p>
+                                  <p className="text-xs font-medium text-gray-700 dark:text-gray-300">Warnings</p>
                                   <ul className="mt-1 space-y-1">
                                     {warnings.map((warning: string, index: number) => (
                                       <li key={index} className="flex items-start">
                                         <AlertTriangle className="h-4 w-4 text-yellow-500 mr-1 flex-shrink-0 mt-0.5" />
-                                        <span className="text-sm">{warning}</span>
+                                        <span className="text-sm text-gray-800 dark:text-gray-200">{warning}</span>
                                       </li>
                                     ))}
                                   </ul>
@@ -646,44 +646,44 @@ export default function Home() {
                         )}
                         
                         {/* Processing Information */}
-                        <div className="bg-gray-50 rounded-md p-4">
-                          <h3 className="font-medium text-gray-900 mb-3">Processing Information</h3>
+                        <div className="bg-gray-50 dark:bg-gray-800 rounded-md p-4">
+                          <h3 className="font-medium text-gray-900 dark:text-white mb-3">Processing Information</h3>
                           <div className="grid grid-cols-2 gap-4 text-sm">
                             <div>
-                              <p className="text-xs font-medium text-gray-500">Original Filename</p>
-                              <p className="truncate">{result.original_filename}</p>
+                              <p className="text-xs font-medium text-gray-700 dark:text-gray-300">Original Filename</p>
+                              <p className="truncate text-gray-800 dark:text-gray-200">{result.original_filename}</p>
                             </div>
                             <div>
-                              <p className="text-xs font-medium text-gray-500">Format</p>
-                              <p className="capitalize">{result.format || result.classification?.format || "unknown"}</p>
+                              <p className="text-xs font-medium text-gray-700 dark:text-gray-300">Format</p>
+                              <p className="capitalize text-gray-800 dark:text-gray-200">{result.format || result.classification?.format || "unknown"}</p>
                             </div>
                             {(result.processing_time || result.classification?.processing_time) && (
                               <>
                                 <div>
-                                  <p className="text-xs font-medium text-gray-500">Processing Time</p>
-                                  <p>{(result.processing_time?.duration_ms || result.classification?.processing_time?.duration_ms || 0)}ms</p>
+                                  <p className="text-xs font-medium text-gray-700 dark:text-gray-300">Processing Time</p>
+                                  <p className="text-gray-800 dark:text-gray-200">{(result.processing_time?.duration_ms || result.classification?.processing_time?.duration_ms || 0)}ms</p>
                                 </div>
                                 <div>
-                                  <p className="text-xs font-medium text-gray-500">Cached</p>
-                                  <p>{(result.processing_time?.cached || result.classification?.processing_time?.cached) ? 'Yes' : 'No'}</p>
+                                  <p className="text-xs font-medium text-gray-700 dark:text-gray-300">Cached</p>
+                                  <p className="text-gray-800 dark:text-gray-200">{(result.processing_time?.cached || result.classification?.processing_time?.cached) ? 'Yes' : 'No'}</p>
                                 </div>
                               </>
                             )}
                           </div>
                           
                           {/* Raw JSON Viewer */}
-                          <div className="mt-4 pt-4 border-t border-gray-200">
+                          <div className="mt-4 pt-4 border-t border-gray-200 dark:border-gray-600">
                             <button 
                               onClick={() => {
                                 navigator.clipboard.writeText(JSON.stringify(result, null, 2))
                                   .then(() => alert('JSON copied to clipboard'))
                                   .catch(err => console.error('Error copying: ', err))
                               }}
-                              className="text-xs text-blue-600 hover:text-blue-800 underline mb-2"
+                              className="text-xs text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300 underline mb-2"
                             >
                               Copy JSON to clipboard
                             </button>
-                            <pre className="bg-gray-100 p-3 rounded-md text-xs text-gray-800 overflow-auto max-h-64">
+                            <pre className="bg-gray-100 dark:bg-gray-900 p-3 rounded-md text-xs text-gray-800 dark:text-gray-200 overflow-auto max-h-64">
                               {JSON.stringify(result, null, 2)}
                             </pre>
                           </div>
@@ -696,16 +696,16 @@ export default function Home() {
                     {processing && processingProgress ? (
                       <div className="animate-pulse">
                         <Loader className="mx-auto h-12 w-12 text-blue-500 animate-spin" />
-                        <h3 className="mt-4 text-sm font-medium text-gray-900">Processing document</h3>
-                        <p className="mt-1 text-sm text-gray-500">
+                        <h3 className="mt-4 text-sm font-medium text-gray-900 dark:text-white">Processing document</h3>
+                        <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
                           {processingProgress.details}
                         </p>
                       </div>
                     ) : (
                       <>
-                        <FileText className="mx-auto h-12 w-12 text-gray-400" />
-                        <h3 className="mt-2 text-sm font-medium text-gray-900">No results</h3>
-                        <p className="mt-1 text-sm text-gray-500">
+                        <FileText className="mx-auto h-12 w-12 text-gray-400 dark:text-gray-500" />
+                        <h3 className="mt-2 text-sm font-medium text-gray-900 dark:text-white">No results</h3>
+                        <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
                           Upload a document to see processing results
                         </p>
                       </>

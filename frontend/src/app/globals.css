@@ -3,11 +3,17 @@
 :root {
   --background: #ffffff;
   --foreground: #171717;
+  --text-primary: #171717;
+  --text-secondary: #4b5563;
+  --text-muted: #6b7280;
 }
 
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
+  --color-text-primary: var(--text-primary);
+  --color-text-secondary: var(--text-secondary);
+  --color-text-muted: var(--text-muted);
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
 }
@@ -16,6 +22,9 @@
   :root {
     --background: #0a0a0a;
     --foreground: #ededed;
+    --text-primary: #ededed;
+    --text-secondary: #d1d5db;
+    --text-muted: #9ca3af;
   }
 }
 
@@ -23,4 +32,32 @@ body {
   background: var(--background);
   color: var(--foreground);
   font-family: Arial, Helvetica, sans-serif;
+}
+
+/* Ensure text visibility in all contexts */
+.text-gray-500 {
+  color: var(--text-secondary) !important;
+}
+
+.text-gray-600 {
+  color: var(--text-secondary) !important;
+}
+
+.text-gray-400 {
+  color: var(--text-muted) !important;
+}
+
+/* Ensure text visibility in tabs and other interactive elements */
+[data-state="active"] {
+  color: var(--text-primary) !important;
+}
+
+/* Ensure text visibility in form elements */
+input, textarea {
+  color: var(--text-primary);
+}
+
+/* Ensure text visibility in placeholders */
+::placeholder {
+  color: var(--text-muted);
 }
