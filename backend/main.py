@@ -40,7 +40,11 @@ app = FastAPI(
 # CORS configuration
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000"],
+    allow_origins=[
+        "http://localhost:3000",
+        "https://mailer-frontend.vercel.app",
+        os.getenv("FRONTEND_URL", "*")
+    ],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

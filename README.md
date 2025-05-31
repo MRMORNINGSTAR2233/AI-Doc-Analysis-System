@@ -1,36 +1,79 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Mailer - AI Document Analysis System
 
-## Getting Started
+A Next.js application for processing and analyzing documents using AI.
 
-First, run the development server:
+## Features
+
+- Document upload and processing
+- AI-powered document analysis
+- Classification of document types
+- Entity extraction
+- Intent recognition
+
+## Tech Stack
+
+- **Frontend**: Next.js 14, React 18, TypeScript, Tailwind CSS
+- **Backend**: Next.js API Routes
+- **Styling**: Tailwind CSS, Radix UI
+- **Form Handling**: react-hook-form, zod
+
+## Deployment on Vercel
+
+### Prerequisites
+
+- A [Vercel](https://vercel.com) account
+- A GitHub, GitLab, or Bitbucket repository with your code
+
+### Deployment Steps
+
+1. **Push your code to a Git repository**
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+git init
+git add .
+git commit -m "Initial commit"
+git remote add origin <your-repository-url>
+git push -u origin main
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+2. **Deploy to Vercel**
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+- Go to [Vercel Dashboard](https://vercel.com/dashboard)
+- Click "Add New" → "Project"
+- Import your Git repository
+- Configure your project:
+  - Framework Preset: Next.js
+  - Root Directory: ./
+  - Build Command: `npm run build`
+  - Output Directory: .next
+- Click "Deploy"
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+3. **Environment Variables**
 
-## Learn More
+No environment variables are required for basic functionality.
 
-To learn more about Next.js, take a look at the following resources:
+## Local Development
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+```bash
+# Install dependencies
+npm install
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+# Run development server
+npm run dev
 
-## Deploy on Vercel
+# Build for production
+npm run build
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+# Start production server
+npm start
+```
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+## Project Structure
+
+- `src/app/` - Next.js App Router pages and components
+- `src/app/api/` - API routes
+- `uploads/` - Temporary storage for uploaded files
+
+## License
+
+MIT
