@@ -5,5 +5,5 @@ cd /app/backend
 python main.py &
 
 # Start the frontend server
-cd /app/frontend
-npm start 
+cd /app
+npm run start 

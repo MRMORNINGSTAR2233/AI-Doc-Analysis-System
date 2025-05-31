@@ -1,25 +1,41 @@
-FROM python:3.10-slim
+# Use Python 3.9 slim image
+FROM python:3.9-slim
 
+# Set working directory
 WORKDIR /app
 
 # Install system dependencies
-RUN apt-get update && apt-get install -y --no-install-recommends \
+RUN apt-get update && \
+    apt-get install -y \
     build-essential \
-    curl \
+    python3-dev \
+    pkg-config \
+    gcc \
+    g++ \
+    sqlite3 \
+    libsqlite3-dev \
     && rm -rf /var/lib/apt/lists/*
 
-# Copy requirements and install Python dependencies
+# Copy requirements first for better caching
 COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
 
-# Copy application code
+# Install Python dependencies
+RUN pip install --no-cache-dir wheel setuptools pip --upgrade && \
+    pip install --no-cache-dir -r requirements.txt
+
+# Copy the rest of the application
 COPY . .
 
 # Create necessary directories
-RUN mkdir -p shared/uploads
+RUN mkdir -p /app/data/chroma
+RUN mkdir -p /app/uploads
 
-# Expose port
+# Set environment variables for chromadb
+ENV CHROMADB_PERSIST_DIRECTORY=/app/data/chroma
+ENV TOKENIZERS_PARALLELISM=false
+
+# Expose the port the app runs on
 EXPOSE 8000
 
-# Start the application
-CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000", "--reload"] 
+# Command to run the application
+CMD ["python", "main.py"] 

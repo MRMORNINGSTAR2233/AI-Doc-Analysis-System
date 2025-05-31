@@ -13,8 +13,11 @@ import { Upload, AlertTriangle, FileText, Mail, FileJson, CheckCircle, XCircle, 
 const API_URL = 'http://localhost:8000'
 const WS_URL = 'ws://localhost:8000'
 
+// Safe form schema that works with SSR
 const formSchema = z.object({
-  file: z.instanceof(File)
+  file: typeof window === 'undefined' 
+    ? z.any() 
+    : z.instanceof(File, { message: 'Please select a file' })
 })
 
 type ProcessingStage = 
