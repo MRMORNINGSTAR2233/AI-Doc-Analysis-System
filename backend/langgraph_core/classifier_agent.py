@@ -58,12 +58,21 @@ class ClassifierAgent:
     def __init__(self, progress_callback: Callable[[Dict[str, Any]], None] = None):
         # Initialize Google Gemini with enhanced configuration
         api_key = os.getenv("GOOGLE_API_KEY")
-        if not api_key:
-            raise ValueError("GOOGLE_API_KEY environment variable not set")
-            
-        genai.configure(api_key=api_key)
-        self.model = genai.GenerativeModel('gemini-1.5-flash')
         
+        if not api_key or api_key == "your_google_api_key_here":
+            raise ValueError(
+                "GOOGLE_API_KEY environment variable is required. "
+                "Please set a valid Google Generative AI API key in your .env file."
+            )
+        
+        try:
+            genai.configure(api_key=api_key)
+            self.model = genai.GenerativeModel('gemini-1.5-flash')
+            logger.info("Successfully initialized Google Generative AI model")
+        except Exception as e:
+            logger.error(f"Failed to initialize Gemini model: {str(e)}")
+            raise RuntimeError(f"Could not initialize Google Generative AI: {str(e)}")
+            
         # Enhanced business intents with weighted patterns and advanced regex
         self.business_intents = self._initialize_business_intents()
         

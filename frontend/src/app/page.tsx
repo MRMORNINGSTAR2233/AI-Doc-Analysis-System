@@ -10,8 +10,8 @@ import * as Separator from '@radix-ui/react-separator'
 import * as Tabs from '@radix-ui/react-tabs'
 import { Upload, AlertTriangle, FileText, Mail, FileJson, CheckCircle, XCircle, AlertCircle, Loader } from 'lucide-react'
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || ''
-const WS_URL = process.env.NEXT_PUBLIC_WS_URL || ''
+const API_URL = 'http://localhost:8000'
+const WS_URL = 'ws://localhost:8000'
 
 // Safe form schema that works with SSR
 const formSchema = z.object({
@@ -108,34 +108,6 @@ export default function Home() {
     }
   }, [taskId])
   
-  // Poll for task results
-  useEffect(() => {
-    if (!taskId || !processing) return
-    
-    const pollInterval = setInterval(async () => {
-      try {
-        const response = await axios.get(`/api/tasks/${taskId}`)
-        if (response.data && response.data.status === 'completed') {
-          setResult(response.data.result)
-          setProcessingProgress({
-            stage: 'completed',
-            progress: 1.0,
-            details: 'Processing complete',
-            timestamp: new Date().toISOString()
-          })
-          setProcessing(false)
-          clearInterval(pollInterval)
-        } else if (response.data && response.data.status === 'processing' && response.data.progress) {
-          setProcessingProgress(response.data.progress)
-        }
-      } catch (err) {
-        console.error('Error polling for results:', err)
-      }
-    }, 2000)
-    
-    return () => clearInterval(pollInterval)
-  }, [taskId, processing])
-  
   const onSubmit = async (data: z.infer<typeof formSchema>) => {
     try {
       setProcessing(true)
@@ -148,7 +120,7 @@ export default function Home() {
       const formData = new FormData()
       formData.append('file', data.file)
       
-      const response = await axios.post(`/api/upload`, formData, {
+      const response = await axios.post(`${API_URL}/api/upload`, formData, {
         headers: {
           'Content-Type': 'multipart/form-data'
         },
@@ -160,7 +132,7 @@ export default function Home() {
         }
       })
       
-      // Set the task ID to establish polling connection
+      // Set the task ID to establish WebSocket connection
       if (response.data.task_id) {
         setTaskId(response.data.task_id)
         setProcessingProgress({

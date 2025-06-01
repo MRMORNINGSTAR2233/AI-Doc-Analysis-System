@@ -5,6 +5,7 @@ import json
 import logging
 from typing import Dict, Any, List
 from jsonschema import validate, ValidationError, Draft7Validator
+import asyncio
 
 logger = logging.getLogger(__name__)
 
@@ -12,11 +13,20 @@ class JSONAgent:
     def __init__(self):
         # Initialize Google Gemini
         api_key = os.getenv("GOOGLE_API_KEY")
-        if not api_key:
-            raise ValueError("GOOGLE_API_KEY environment variable not set")
-            
-        genai.configure(api_key=api_key)
-        self.model = genai.GenerativeModel('gemini-1.5-flash')
+        
+        if not api_key or api_key == "your_google_api_key_here":
+            raise ValueError(
+                "GOOGLE_API_KEY environment variable is required. "
+                "Please set a valid Google Generative AI API key in your .env file."
+            )
+        
+        try:
+            genai.configure(api_key=api_key)
+            self.model = genai.GenerativeModel('gemini-1.5-flash')
+            logger.info("JSON Agent: Successfully initialized Google Generative AI model")
+        except Exception as e:
+            logger.error(f"JSON Agent: Failed to initialize Gemini model: {str(e)}")
+            raise RuntimeError(f"Could not initialize Google Generative AI: {str(e)}")
         
         # Define common JSON schemas
         self.schemas = {

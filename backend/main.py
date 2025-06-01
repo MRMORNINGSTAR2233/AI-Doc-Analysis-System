@@ -31,20 +31,23 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
+# Validate required environment variables
+GOOGLE_API_KEY = os.getenv("GOOGLE_API_KEY")
+if not GOOGLE_API_KEY or GOOGLE_API_KEY == "your_google_api_key_here":
+    logger.error("GOOGLE_API_KEY environment variable is required for production")
+    raise ValueError("Please set a valid GOOGLE_API_KEY in your .env file")
+
 app = FastAPI(
-    title="AI Agent System",
-    description="Multi-agent system for processing various document types",
+    title="AI Document Analysis System",
+    description="Production-ready multi-agent system for processing various document types",
     version="1.0.0"
 )
 
-# CORS configuration
+# CORS configuration - configurable for production
+allowed_origins = os.getenv("ALLOWED_ORIGINS", "http://localhost:3000").split(",")
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[
-        "http://localhost:3000",
-        "https://mailer-frontend.vercel.app",
-        os.getenv("FRONTEND_URL", "*")
-    ],
+    allow_origins=allowed_origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -58,6 +61,7 @@ try:
     json_agent = JSONAgent()
     pdf_agent = PDFAgent()
     action_router = ActionRouter()
+    logger.info("All system components initialized successfully")
 except Exception as e:
     logger.error(f"Failed to initialize components: {str(e)}")
     raise
@@ -310,16 +314,60 @@ async def get_memory(memory_id: str):
             detail="Failed to retrieve memory data"
         )
 
-# Simulated external endpoints with proper error handling
+# External service integration endpoints
+# NOTE: These endpoints are currently mock implementations for demonstration purposes.
+# In production, replace these with actual integrations to your CRM, alerting, and workflow systems.
+
 @app.post("/crm/escalate")
 async def crm_escalate(data: Dict[str, Any]):
+    """
+    CRM escalation endpoint - integrates with external CRM system.
+    
+    In production, this should:
+    - Connect to your actual CRM API (Salesforce, HubSpot, etc.)
+    - Create real support tickets
+    - Trigger appropriate workflows
+    
+    Environment variables needed:
+    - CRM_API_URL: Your CRM API endpoint
+    - CRM_API_KEY: Your CRM API authentication key
+    """
     try:
-        # Log the escalation
+        # Production implementation should use actual CRM integration
+        crm_api_url = os.getenv("CRM_API_URL")
+        crm_api_key = os.getenv("CRM_API_KEY")
+        
+        if not crm_api_url or not crm_api_key:
+            logger.warning("CRM integration not configured - using mock response")
+            # Mock response for development/demo
+            return JSONResponse(
+                status_code=200,
+                content={
+                    "status": "escalated_mock",
+                    "timestamp": datetime.now().isoformat(),
+                    "ticket_id": f"ESC-{datetime.now().strftime('%Y%m%d-%H%M%S')}",
+                    "priority": "high",
+                    "assigned_to": "support_team",
+                    "note": "Mock escalation - configure CRM_API_URL and CRM_API_KEY for production"
+                }
+            )
+        
+        # TODO: Implement actual CRM integration here
+        # Example:
+        # async with httpx.AsyncClient() as client:
+        #     response = await client.post(
+        #         f"{crm_api_url}/tickets",
+        #         headers={"Authorization": f"Bearer {crm_api_key}"},
+        #         json={
+        #             "title": f"Document Analysis Escalation - {data.get('source', 'Unknown')}",
+        #             "priority": data.get('priority', 'high'),
+        #             "description": data.get('reason', 'Automated escalation from document analysis'),
+        #             "metadata": data.get('metadata', {})
+        #         }
+        #     )
+        #     return response.json()
+        
         logger.info(f"CRM Escalation: {json.dumps(data)}")
-        
-        # Simulate processing delay
-        await asyncio.sleep(1)
-        
         return JSONResponse(
             status_code=200,
             content={
@@ -339,8 +387,18 @@ async def crm_escalate(data: Dict[str, Any]):
 
 @app.post("/crm/log")
 async def crm_log(data: Dict[str, Any]):
+    """
+    CRM logging endpoint - logs document processing events to CRM.
+    
+    In production, configure with actual CRM logging API.
+    """
     try:
-        # Log the entry
+        crm_api_url = os.getenv("CRM_API_URL")
+        crm_api_key = os.getenv("CRM_API_KEY")
+        
+        if not crm_api_url or not crm_api_key:
+            logger.warning("CRM integration not configured - using mock response")
+        
         logger.info(f"CRM Log: {json.dumps(data)}")
         
         return JSONResponse(
@@ -361,12 +419,21 @@ async def crm_log(data: Dict[str, Any]):
 
 @app.post("/risk_alert")
 async def risk_alert(data: Dict[str, Any]):
+    """
+    Risk alerting endpoint - integrates with risk management systems.
+    
+    In production, configure with your risk management platform:
+    - RISK_ALERT_URL: Your risk management API endpoint
+    - RISK_ALERT_KEY: API authentication key
+    """
     try:
-        # Log the risk alert
-        logger.info(f"Risk Alert: {json.dumps(data)}")
+        risk_alert_url = os.getenv("RISK_ALERT_URL")
+        risk_alert_key = os.getenv("RISK_ALERT_KEY")
         
-        # Simulate alert processing
-        await asyncio.sleep(1)
+        if not risk_alert_url or not risk_alert_key:
+            logger.warning("Risk alerting system not configured - using mock response")
+        
+        logger.info(f"Risk Alert: {json.dumps(data)}")
         
         return JSONResponse(
             status_code=200,
@@ -387,8 +454,20 @@ async def risk_alert(data: Dict[str, Any]):
 
 @app.post("/validation_error")
 async def validation_error(data: Dict[str, Any]):
+    """
+    Validation error logging endpoint - logs document validation issues.
+    
+    In production, integrate with your error tracking system:
+    - ERROR_TRACKING_URL: Error tracking service endpoint (e.g., Sentry, Bugsnag)
+    - ERROR_TRACKING_KEY: API key for error tracking service
+    """
     try:
-        # Log the validation error
+        error_tracking_url = os.getenv("ERROR_TRACKING_URL")
+        error_tracking_key = os.getenv("ERROR_TRACKING_KEY")
+        
+        if not error_tracking_url or not error_tracking_key:
+            logger.warning("Error tracking system not configured - using mock response")
+        
         logger.info(f"Validation Error: {json.dumps(data)}")
         
         return JSONResponse(
@@ -410,8 +489,20 @@ async def validation_error(data: Dict[str, Any]):
 
 @app.post("/manual_review")
 async def manual_review(data: Dict[str, Any]):
+    """
+    Manual review queue endpoint - queues documents for human review.
+    
+    In production, integrate with your workflow management system:
+    - WORKFLOW_API_URL: Workflow management API endpoint
+    - WORKFLOW_API_KEY: API key for workflow system
+    """
     try:
-        # Log the manual review request
+        workflow_api_url = os.getenv("WORKFLOW_API_URL")
+        workflow_api_key = os.getenv("WORKFLOW_API_KEY")
+        
+        if not workflow_api_url or not workflow_api_key:
+            logger.warning("Workflow system not configured - using mock response")
+        
         logger.info(f"Manual Review Request: {json.dumps(data)}")
         
         return JSONResponse(
@@ -433,8 +524,20 @@ async def manual_review(data: Dict[str, Any]):
 
 @app.post("/financial_review")
 async def financial_review(data: Dict[str, Any]):
+    """
+    Financial review endpoint - queues documents for financial team review.
+    
+    In production, integrate with your financial management system:
+    - FINANCE_API_URL: Financial system API endpoint
+    - FINANCE_API_KEY: API key for financial system
+    """
     try:
-        # Log the financial review request
+        finance_api_url = os.getenv("FINANCE_API_URL")
+        finance_api_key = os.getenv("FINANCE_API_KEY")
+        
+        if not finance_api_url or not finance_api_key:
+            logger.warning("Financial system not configured - using mock response")
+        
         logger.info(f"Financial Review Request: {json.dumps(data)}")
         
         return JSONResponse(
@@ -484,4 +587,4 @@ if __name__ == "__main__":
         host="0.0.0.0",
         port=8000,
         log_level=os.getenv("LOG_LEVEL", "info").lower()
-    ) 
+    )

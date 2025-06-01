@@ -7,6 +7,7 @@ from typing import Dict, Any, List, Optional
 import pypdf
 import re
 from datetime import datetime
+import asyncio
 
 logger = logging.getLogger(__name__)
 
@@ -14,11 +15,20 @@ class PDFAgent:
     def __init__(self):
         # Initialize Google Gemini
         api_key = os.getenv("GOOGLE_API_KEY")
-        if not api_key:
-            raise ValueError("GOOGLE_API_KEY environment variable not set")
-            
-        genai.configure(api_key=api_key)
-        self.model = genai.GenerativeModel('gemini-1.5-flash')
+        
+        if not api_key or api_key == "your_google_api_key_here":
+            raise ValueError(
+                "GOOGLE_API_KEY environment variable is required. "
+                "Please set a valid Google Generative AI API key in your .env file."
+            )
+        
+        try:
+            genai.configure(api_key=api_key)
+            self.model = genai.GenerativeModel('gemini-1.5-flash')
+            logger.info("PDF Agent: Successfully initialized Google Generative AI model")
+        except Exception as e:
+            logger.error(f"PDF Agent: Failed to initialize Gemini model: {str(e)}")
+            raise RuntimeError(f"Could not initialize Google Generative AI: {str(e)}")
         
         # Define compliance keywords
         self.compliance_keywords = {
