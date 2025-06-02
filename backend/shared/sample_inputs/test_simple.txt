@@ -1,0 +1,10 @@
+
+TEST INVOICE
+
+Invoice #: INV-2024-001
+Date: June 2, 2025
+Amount: ,250.00
+Description: Professional Services
+Due Date: June 30, 2025
+
+This is a test document for PDF agent validation.

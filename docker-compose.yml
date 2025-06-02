@@ -13,7 +13,7 @@ services:
       - chroma_data:/app/data/chroma  # For chromadb persistence
     environment:
       - PYTHONUNBUFFERED=1
-      - GOOGLE_API_KEY=${GOOGLE_API_KEY}
+      - GOOGLE_API_KEY=AIzaSyAHKuJEhWqmjQbh8Q3wHupGtOyNmwzCXk8
       - CHROMADB_PERSIST_DIRECTORY=/app/data/chroma
       - PORT=8000
       - ALLOWED_ORIGINS=http://localhost:3000

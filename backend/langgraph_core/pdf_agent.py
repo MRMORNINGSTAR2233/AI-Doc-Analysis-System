@@ -56,35 +56,129 @@ class PDFAgent:
         """Extract invoice line items using regex patterns."""
         items = []
         
-        # Common invoice item patterns
+        # More specific invoice item patterns that avoid false matches
         patterns = [
-            r"\$?\s*(\d+(?:,\d{3})*(?:\.\d{2})?)\s*(?:USD)?\s*[-–]\s*(.+?)(?=\$|\n|$)",
-            r"(\d+)\s*x\s*(.+?)\s*@\s*\$?\s*(\d+(?:,\d{3})*(?:\.\d{2})?)",
-            r"(.+?)\s*\$?\s*(\d+(?:,\d{3})*(?:\.\d{2})?)\s*(?:USD)?(?=\n|$)"
+            # Pattern 1: $amount - description
+            r"\$\s*(\d+(?:,\d{3})*(?:\.\d{2})?)\s*[-–]\s*(.+?)(?=\$|\n|$)",
+            # Pattern 2: quantity x item @ $price
+            r"(\d+)\s*x\s*(.+?)\s*@\s*\$\s*(\d+(?:,\d{3})*(?:\.\d{2})?)",
+            # Pattern 3: description $amount (more restrictive)
+            r"^(.+?)\s+\$\s*(\d+(?:,\d{3})*(?:\.\d{2})?)(?:\s*USD)?\s*$",
+            # Pattern 4: amount USD - description
+            r"(\d+(?:,\d{3})*(?:\.\d{2})?)\s*USD\s*[-–]\s*(.+?)(?=\n|$)"
         ]
         
         for pattern in patterns:
-            matches = re.finditer(pattern, text)
+            matches = re.finditer(pattern, text, re.MULTILINE)
             for match in matches:
-                if len(match.groups()) == 2:  # Amount and description
-                    amount = float(match.group(1).replace(',', ''))
-                    description = match.group(2).strip()
-                    items.append({
-                        "amount": amount,
-                        "description": description
-                    })
-                elif len(match.groups()) == 3:  # Quantity, item, and unit price
-                    quantity = int(match.group(1))
-                    description = match.group(2).strip()
-                    unit_price = float(match.group(3).replace(',', ''))
-                    items.append({
-                        "quantity": quantity,
-                        "description": description,
-                        "unit_price": unit_price,
-                        "amount": quantity * unit_price
-                    })
+                try:
+                    groups = match.groups()
+                    
+                    if len(groups) == 2:
+                        # Check which group contains the amount
+                        group1, group2 = groups
+                        
+                        # Try to determine which is amount and which is description
+                        if self._is_valid_amount(group1):
+                            amount_str = group1
+                            description = group2.strip()
+                        elif self._is_valid_amount(group2):
+                            amount_str = group2
+                            description = group1.strip()
+                        else:
+                            continue  # Skip if neither group is a valid amount
+                        
+                        # Convert amount to float
+                        amount = float(amount_str.replace(',', ''))
+                        
+                        # Validate description (skip if it looks like metadata)
+                        if self._is_valid_description(description):
+                            items.append({
+                                "amount": amount,
+                                "description": description
+                            })
+                            
+                    elif len(groups) == 3:  # Quantity, item, and unit price
+                        quantity_str, description, unit_price_str = groups
+                        
+                        # Validate all components
+                        if (self._is_valid_quantity(quantity_str) and 
+                            self._is_valid_amount(unit_price_str) and 
+                            self._is_valid_description(description)):
+                            
+                            quantity = int(quantity_str)
+                            unit_price = float(unit_price_str.replace(',', ''))
+                            
+                            items.append({
+                                "quantity": quantity,
+                                "description": description.strip(),
+                                "unit_price": unit_price,
+                                "amount": quantity * unit_price
+                            })
+                            
+                except (ValueError, AttributeError) as e:
+                    # Log the error but continue processing other matches
+                    logger.debug(f"Skipping invalid invoice item match: {match.group()} - {str(e)}")
+                    continue
                     
         return items
+    
+    def _is_valid_amount(self, text: str) -> bool:
+        """Check if text represents a valid monetary amount."""
+        if not text or not isinstance(text, str):
+            return False
+        
+        # Clean the text
+        cleaned = text.strip().replace(',', '').replace('$', '').replace('USD', '').strip()
+        
+        # Check if it's a valid number
+        try:
+            float(cleaned)
+            return True
+        except ValueError:
+            return False
+    
+    def _is_valid_quantity(self, text: str) -> bool:
+        """Check if text represents a valid quantity."""
+        if not text or not isinstance(text, str):
+            return False
+        
+        try:
+            qty = int(text.strip())
+            return qty > 0 and qty < 10000  # Reasonable quantity limits
+        except ValueError:
+            return False
+    
+    def _is_valid_description(self, text: str) -> bool:
+        """Check if text represents a valid item description."""
+        if not text or not isinstance(text, str):
+            return False
+        
+        text = text.strip()
+        
+        # Skip if too short or contains invoice metadata
+        if len(text) < 3:
+            return False
+        
+        # Skip common invoice metadata patterns
+        invalid_patterns = [
+            r'invoice\s+number',
+            r'invoice\s+date',
+            r'due\s+date',
+            r'bill\s+to',
+            r'ship\s+to',
+            r'payment\s+terms',
+            r'total\s+amount',
+            r'subtotal',
+            r'tax\s+rate',
+            r'grand\s+total'
+        ]
+        
+        for pattern in invalid_patterns:
+            if re.search(pattern, text, re.IGNORECASE):
+                return False
+        
+        return True
         
     def _check_compliance_keywords(self, text: str) -> Dict[str, List[str]]:
         """Check for compliance-related keywords."""
@@ -403,36 +497,103 @@ class PDFAgent:
 
     async def process(self, file_path: Path) -> Dict[str, Any]:
         """Process PDF file and return analysis."""
+        processing_steps = []
+        
         try:
             # Extract text
+            logger.info(f"Starting PDF processing for {file_path.name}")
             text = self._extract_text(file_path)
+            processing_steps.append({"step": "text_extraction", "status": "success"})
             
-            # Extract invoice items if present
-            invoice_items = self._extract_invoice_items(text)
+            # Extract invoice items if present (with error handling)
+            invoice_items = []
+            try:
+                invoice_items = self._extract_invoice_items(text)
+                processing_steps.append({
+                    "step": "invoice_detection", 
+                    "status": "success", 
+                    "items_found": len(invoice_items)
+                })
+            except Exception as e:
+                logger.warning(f"Invoice item extraction failed: {str(e)}")
+                processing_steps.append({
+                    "step": "invoice_detection", 
+                    "status": "failed", 
+                    "error": str(e)
+                })
             
             # Check for compliance keywords
-            compliance_findings = self._check_compliance_keywords(text)
+            compliance_findings = {}
+            try:
+                compliance_findings = self._check_compliance_keywords(text)
+                processing_steps.append({
+                    "step": "compliance_check", 
+                    "status": "success", 
+                    "regulations_found": len(compliance_findings)
+                })
+            except Exception as e:
+                logger.warning(f"Compliance check failed: {str(e)}")
+                processing_steps.append({
+                    "step": "compliance_check", 
+                    "status": "failed", 
+                    "error": str(e)
+                })
             
             # Analyze content
-            content_analysis = await self._analyze_content(text)
+            content_analysis = {}
+            try:
+                content_analysis = await self._analyze_content(text)
+                processing_steps.append({
+                    "step": "content_analysis", 
+                    "status": "success", 
+                    "risk_level": content_analysis.get("risk_assessment", {}).get("level", "unknown")
+                })
+            except Exception as e:
+                logger.warning(f"Content analysis failed: {str(e)}")
+                content_analysis = self._generate_fallback_analysis(text)
+                processing_steps.append({
+                    "step": "content_analysis", 
+                    "status": "fallback", 
+                    "error": str(e)
+                })
             
-            # Calculate total value for invoices
-            total_value = sum(item["amount"] for item in invoice_items) if invoice_items else 0
+            # Calculate total value for invoices (with safety checks)
+            total_value = 0
+            if invoice_items:
+                try:
+                    total_value = sum(item.get("amount", 0) for item in invoice_items if isinstance(item.get("amount"), (int, float)))
+                except Exception as e:
+                    logger.warning(f"Total value calculation failed: {str(e)}")
+                    total_value = 0
             
             # Generate actions
-            actions = self._generate_actions(
-                content_analysis,
-                total_value,
-                compliance_findings,
-                invoice_items
-            )
+            actions = []
+            try:
+                actions = self._generate_actions(
+                    content_analysis,
+                    total_value,
+                    compliance_findings,
+                    invoice_items
+                )
+                processing_steps.append({
+                    "step": "action_generation", 
+                    "status": "success", 
+                    "actions_generated": len(actions)
+                })
+            except Exception as e:
+                logger.warning(f"Action generation failed: {str(e)}")
+                processing_steps.append({
+                    "step": "action_generation", 
+                    "status": "failed", 
+                    "error": str(e)
+                })
             
-            # Prepare result
+            # Prepare result with safe access to all fields
             result = {
                 "metadata": {
                     "file_name": file_path.name,
-                    "document_type": content_analysis["document_type"],
-                    "page_count": len(pypdf.PdfReader(file_path).pages)
+                    "document_type": content_analysis.get("document_type", "unknown"),
+                    "page_count": self._safe_get_page_count(file_path)
                 },
                 "content": {
                     "text_preview": text[:1000] + "..." if len(text) > 1000 else text,
@@ -441,16 +602,20 @@ class PDFAgent:
                 },
                 "analysis": {
                     "compliance": {
-                        "regulations_mentioned": list(compliance_findings.keys()),
+                        "regulations_mentioned": list(compliance_findings.keys()) if compliance_findings else [],
                         "keyword_matches": compliance_findings,
-                        "requirements": content_analysis["compliance_requirements"]
+                        "requirements": content_analysis.get("compliance_requirements", [])
                     },
-                    "key_findings": content_analysis["key_findings"],
-                    "risk_assessment": content_analysis["risk_assessment"]
+                    "key_findings": content_analysis.get("key_findings", {}),
+                    "risk_assessment": content_analysis.get("risk_assessment", {
+                        "level": "medium",
+                        "factors": [],
+                        "requires_review": True
+                    })
                 },
                 "flags": {
                     "high_value": total_value >= 10000 if total_value else False,
-                    "requires_review": content_analysis["risk_assessment"]["requires_review"],
+                    "requires_review": content_analysis.get("risk_assessment", {}).get("requires_review", True),
                     "has_compliance_terms": len(compliance_findings) > 0
                 },
                 "actions": actions,
@@ -459,17 +624,11 @@ class PDFAgent:
             
             # Add memory trace
             result["memory_trace"] = {
-                "processing_steps": [
-                    {"step": "text_extraction", "status": "success"},
-                    {"step": "invoice_detection", "status": "success", "items_found": len(invoice_items) if invoice_items else 0},
-                    {"step": "compliance_check", "status": "success", "regulations_found": len(compliance_findings)},
-                    {"step": "content_analysis", "status": "success", "risk_level": content_analysis["risk_assessment"]["level"]},
-                    {"step": "action_generation", "status": "success", "actions_generated": len(actions)}
-                ],
+                "processing_steps": processing_steps,
                 "decision_factors": {
                     "high_value": result["flags"]["high_value"],
                     "compliance_terms": result["flags"]["has_compliance_terms"],
-                    "high_risk": content_analysis["risk_assessment"]["level"] == "high"
+                    "high_risk": content_analysis.get("risk_assessment", {}).get("level") == "high"
                 }
             }
             
@@ -478,7 +637,69 @@ class PDFAgent:
             
         except Exception as e:
             logger.error(f"PDF processing error: {str(e)}")
-            raise
+            # Return a basic error result instead of raising
+            return self._generate_error_result(file_path, str(e), processing_steps)
+
+    def _safe_get_page_count(self, file_path: Path) -> int:
+        """Safely get page count from PDF."""
+        try:
+            reader = pypdf.PdfReader(file_path)
+            return len(reader.pages)
+        except Exception as e:
+            logger.warning(f"Could not get page count: {str(e)}")
+            return 0
+
+    def _generate_error_result(self, file_path: Path, error_message: str, processing_steps: List[Dict[str, Any]]) -> Dict[str, Any]:
+        """Generate a fallback result when processing fails."""
+        return {
+            "metadata": {
+                "file_name": file_path.name,
+                "document_type": "unknown",
+                "page_count": 0,
+                "processing_error": error_message
+            },
+            "content": {
+                "text_preview": "Error: Could not extract content",
+                "invoice_items": None,
+                "total_value": None
+            },
+            "analysis": {
+                "compliance": {
+                    "regulations_mentioned": [],
+                    "keyword_matches": {},
+                    "requirements": []
+                },
+                "key_findings": {},
+                "risk_assessment": {
+                    "level": "high",
+                    "factors": ["processing_error"],
+                    "requires_review": True
+                }
+            },
+            "flags": {
+                "high_value": False,
+                "requires_review": True,
+                "has_compliance_terms": False,
+                "processing_error": True
+            },
+            "actions": [{
+                "type": "manual_review",
+                "priority": "high",
+                "description": "Manual review required due to processing error",
+                "reason": f"Automated processing failed: {error_message}"
+            }],
+            "suggested_actions": [],
+            "memory_trace": {
+                "processing_steps": processing_steps + [{
+                    "step": "error_handling",
+                    "status": "completed",
+                    "error": error_message
+                }],
+                "decision_factors": {
+                    "processing_error": True
+                }
+            }
+        }
 
     def _generate_actions(
         self,
@@ -709,17 +930,37 @@ class PDFAgent:
         return result
         
     def _generate_fallback_analysis(self, content: str) -> Dict[str, Any]:
-        """Generate fallback content analysis."""
+        """Generate fallback content analysis when AI analysis fails."""
         return {
             "document_type": "other",
-            "primary_purpose": "Document purpose could not be determined",
-            "key_topics": [],
-            "important_sections": [],
-            "complexity_level": "medium",
-            "target_audience": ["general"],
-            "action_items": ["Review document manually"],
-            "confidence_level": 0.3,
-            "analysis_summary": "Automated analysis failed, manual review recommended"
+            "compliance_requirements": [],
+            "key_findings": {
+                "monetary_values": [],
+                "dates": [],
+                "entities": [],
+                "critical_terms": []
+            },
+            "risk_assessment": {
+                "level": "medium",
+                "factors": ["analysis_failed"],
+                "requires_review": True,
+                "confidence": 0.3,
+                "explanation": "Automated analysis failed, manual review recommended"
+            },
+            "suggested_actions": [
+                {
+                    "type": "manual_review",
+                    "priority": "high",
+                    "description": "Conduct manual document review",
+                    "reason": "Automated analysis failed"
+                }
+            ],
+            "analysis_confidence": {
+                "overall": 0.3,
+                "document_type": 0.3,
+                "risk_assessment": 0.3,
+                "explanation": "Fallback analysis due to processing failure"
+            }
         }
         
     def _generate_fallback_summary(self) -> Dict[str, Any]:

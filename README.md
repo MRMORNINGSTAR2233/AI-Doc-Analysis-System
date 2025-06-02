@@ -2,6 +2,12 @@
 
 Transform your documents into actionable intelligence with AI-powered analysis
 
+## 🎥 System Demo
+
+https://github.com/user-attachments/assets/submission-video.mov
+
+*Watch our AI system in action - intelligent document processing with real-time feedback*
+
 [![FastAPI](https://img.shields.io/badge/FastAPI-009688?style=for-the-badge&logo=fastapi&logoColor=white)](https://fastapi.tiangolo.com/)
 [![Next.js](https://img.shields.io/badge/Next.js-000000?style=for-the-badge&logo=nextdotjs&logoColor=white)](https://nextjs.org/)
 [![Python](https://img.shields.io/badge/Python-3776AB?style=for-the-badge&logo=python&logoColor=white)](https://python.org/)
@@ -14,6 +20,9 @@ Transform your documents into actionable intelligence with AI-powered analysis
 ![AI Powered](https://img.shields.io/badge/🤖_AI-Powered-purple?style=flat-square&labelColor=2d3748)
 
 **Harness the power of intelligent document processing with our cutting-edge AI system that transforms complex documents into structured, actionable data through multi-agent orchestration and real-time processing.**
+
+![AI Document Analysis Dashboard](img&vid/Screenshot%202025-06-02%20at%2013.00.16.png)
+*Modern, intuitive interface for seamless document processing*
 
 🚀 [Quick Start](#-quick-start) • 📚 [Documentation](#-documentation) • 🎯 [Features](#-key-features) • 🏗️ [Architecture](#️-system-architecture)
 
@@ -42,12 +51,18 @@ Transform your documents into actionable intelligence with AI-powered analysis
 - 📱 **Responsive Interface** - Beautiful UI that works on all devices
 - 🔄 **Streaming Updates** - Watch your documents being processed live
 
+![Real-time Processing](img&vid/Screenshot%202025-06-02%20at%2013.00.21.png)
+*Real-time progress tracking with live updates during document processing*
+
 ### 🏢 **Enterprise Ready**
 
 - 🐳 **Docker Containerization** - Easy deployment and scaling
 - 🔧 **Production Configuration** - Battle-tested setup for enterprise use
 - 📡 **RESTful API Design** - Clean, well-documented API endpoints
 - 🔐 **Secure Pipeline** - Built with security best practices
+
+![Document Analysis Results](img&vid/Screenshot%202025-06-02%20at%2013.01.24.png)
+*Comprehensive analysis results with structured data extraction and actionable insights*
 
 ---
 
@@ -102,6 +117,9 @@ graph LR
 | 3️⃣ | **Analyzer** | Deep content analysis | Insights, Relationships |
 | 4️⃣ | **Router** | Action determination & execution | Recommendations, Actions |
 
+![Processing Pipeline](img&vid/Screenshot%202025-06-02%20at%2013.01.30.png)
+*Multi-stage processing pipeline with detailed analysis and classification*
+
 ---
 
 ## 🚀 Quick Start
@@ -122,6 +140,9 @@ docker-compose up --build
 - 🌐 **Frontend Application**: <http://localhost:3000>
 - 🔧 **Backend API**: <http://localhost:8000>
 - 📚 **API Documentation**: <http://localhost:8000/docs>
+
+![System Interface](img&vid/Screenshot%202025-06-02%20at%2013.01.37.png)
+*Clean, intuitive interface showing document processing status and detailed results*
 
 ### 💻 Development Mode Setup
 
@@ -144,6 +165,27 @@ npm install
 # Start development server
 npm run dev
 ```
+
+![Advanced Analytics View](img&vid/Screenshot%202025-06-02%20at%2013.01.41.png)
+*Advanced analytics and insights dashboard with comprehensive document analysis*
+
+---
+
+## 🌟 Visual Showcase
+
+Transform your documents with confidence using our intuitive, powerful interface:
+
+### 📊 Real-Time Processing Dashboard
+![Processing Dashboard](img&vid/Screenshot%202025-06-02%20at%2013.00.21.png)
+*Watch documents being processed in real-time with live progress updates*
+
+### 🎯 Intelligent Analysis Results  
+![Analysis Results](img&vid/Screenshot%202025-06-02%20at%2013.01.24.png)
+*Get comprehensive insights with structured data extraction and smart recommendations*
+
+### 🔍 Detailed Document Insights
+![Document Insights](img&vid/Screenshot%202025-06-02%20at%2013.01.37.png)
+*View detailed analysis results with confidence scores and actionable next steps*
 
 ---
 
@@ -528,6 +570,32 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 - **LangGraph** - For AI agent orchestration capabilities
 - **ChromaDB** - For vector database functionality
 - **Google AI** - For language model integration
+
+---
+
+## 🖼️ Gallery - System in Action
+
+<div align="center">
+
+| Dashboard View | Real-Time Processing | Analysis Results |
+|:---:|:---:|:---:|
+| ![Dashboard](img&vid/Screenshot%202025-06-02%20at%2013.00.16.png) | ![Processing](img&vid/Screenshot%202025-06-02%20at%2013.00.21.png) | ![Results](img&vid/Screenshot%202025-06-02%20at%2013.01.24.png) |
+| *Main dashboard interface* | *Live processing updates* | *Detailed analysis results* |
+
+| Processing Pipeline | System Interface | Advanced Analytics |
+|:---:|:---:|:---:|
+| ![Pipeline](img&vid/Screenshot%202025-06-02%20at%2013.01.30.png) | ![Interface](img&vid/Screenshot%202025-06-02%20at%2013.01.37.png) | ![Analytics](img&vid/Screenshot%202025-06-02%20at%2013.01.41.png) |
+| *Multi-stage processing view* | *Clean interface design* | *Advanced insights dashboard* |
+
+</div>
+
+### 🎥 Complete System Demo
+
+For a comprehensive walkthrough of all features and capabilities, watch our complete system demonstration:
+
+**[📹 View Full Demo Video](img&vid/submission%20video.mov)**
+
+*Experience the full power of our AI Document Analysis System with real-time processing, intelligent classification, and actionable insights.*
 
 ---
 

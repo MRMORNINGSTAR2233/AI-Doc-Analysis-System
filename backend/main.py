@@ -261,7 +261,22 @@ async def process_file(task_id: str, file_path: Path, original_filename: str):
             "validation": classification_result['validation']
         }
         
-        # Store the result
+        # Store in memory (SQLite + ChromaDB) for future similarity search
+        try:
+            memory_id = await memory_manager.store_processing_result(
+                classification=classification_result,
+                processing_result=specialized_result,
+                actions=actions
+            )
+            # Add memory ID to final result for reference
+            final_result["memory_id"] = memory_id
+            logger.info(f"Processing result stored in memory with ID: {memory_id}")
+        except Exception as e:
+            logger.error(f"Failed to store in memory: {str(e)}")
+            # Continue processing even if memory storage fails
+            final_result["memory_id"] = None
+        
+        # Store the result in connection manager
         manager.store_result(task_id, final_result)
         
         # Send completion notification
@@ -312,6 +327,42 @@ async def get_memory(memory_id: str):
         raise HTTPException(
             status_code=500,
             detail="Failed to retrieve memory data"
+        )
+
+@app.get("/api/memory/search/similar")
+async def search_similar_documents(
+    query: str,
+    doc_type: Optional[str] = None,
+    limit: int = 5
+):
+    """
+    Search for similar documents using semantic similarity.
+    
+    Args:
+        query: Search query text
+        doc_type: Optional document type filter (email, pdf, json)
+        limit: Maximum number of results to return (default: 5)
+    """
+    try:
+        similar_docs = await memory_manager.search_similar(
+            query=query,
+            doc_type=doc_type,
+            limit=limit
+        )
+        return JSONResponse(
+            status_code=200,
+            content={
+                "query": query,
+                "doc_type": doc_type,
+                "limit": limit,
+                "results": similar_docs
+            }
+        )
+    except Exception as e:
+        logger.error(f"Failed to search similar documents: {str(e)}")
+        raise HTTPException(
+            status_code=500,
+            detail="Failed to search similar documents"
         )
 
 # External service integration endpoints
