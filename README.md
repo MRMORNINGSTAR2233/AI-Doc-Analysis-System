@@ -4,7 +4,7 @@ Transform your documents into actionable intelligence with AI-powered analysis
 
 ## 🎥 System Demo
 
-https://github.com/user-attachments/assets/c190df3a-ac5b-48c7-ab30-5c8bfa88d764
+https://github.com/user-attachments/assets/a03caa9b-13a8-4fc0-98f3-3edab2e87b17
 
 *Watch our AI system in action - intelligent document processing with real-time feedback*
 
