@@ -599,6 +599,6 @@ For a comprehensive walkthrough of all features and capabilities, watch our comp
 
 ---
 
-Made with ❤️ by the AI Document Analysis Team
+Made with ❤️ by the Akshaykumar
 
 *Transform your documents into intelligence today!*
